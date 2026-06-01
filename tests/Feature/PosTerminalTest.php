@@ -132,7 +132,7 @@ test('checkout customer select starts empty and requires a real selection', func
 
     Livewire::actingAs($user)
         ->test('pages::pos.index')
-        ->assertSet('customer_id', null)
+        ->assertSet('customer_id', '')
         ->assertSee('-- Select the customer --')
         ->call('addToCart', $product->id)
         ->call('submitCheckout')

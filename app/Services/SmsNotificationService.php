@@ -157,10 +157,16 @@ class SmsNotificationService
             return false;
         }
 
-        $message = $this->smsService->parseTemplate(
-            $template,
-            $this->smsService->saleTemplateData($sale, $extra),
-        );
+        $templateData = $this->smsService->saleTemplateData($sale, $extra);
+        $message = $this->smsService->parseTemplate($template, $templateData);
+
+        if ($templateKey === 'sms_template_sale') {
+            $message = $this->withSalePaymentSummary($message, $templateData);
+        }
+
+        if ($templateKey === 'sms_template_cheque_passed') {
+            $message = $this->withBillLink($message, $templateData);
+        }
 
         $result = $this->smsService->sendSms($sale->customer->phone, $message, $ref);
 
@@ -171,6 +177,34 @@ class SmsNotificationService
     {
         return Setting::get('sms_enabled', '0') === '1'
             && Setting::get($settingKey, '1') === '1';
+    }
+
+    /**
+     * @param  array<string, string>  $templateData
+     */
+    private function withSalePaymentSummary(string $message, array $templateData): string
+    {
+        $summary = " Cash Rs {$templateData['cash_payment']}. Cheques: {$templateData['cheque_payments']}. Hold Rs {$templateData['hold_amount']}. Due Rs {$templateData['due']}. View/print: {$templateData['bill_link']}";
+
+        if (str_contains($message, (string) $templateData['bill_link'])
+            && str_contains($message, (string) $templateData['hold_amount'])
+            && str_contains($message, (string) $templateData['cheque_payments'])) {
+            return $message;
+        }
+
+        return trim($message).$summary;
+    }
+
+    /**
+     * @param  array<string, string>  $templateData
+     */
+    private function withBillLink(string $message, array $templateData): string
+    {
+        if (str_contains($message, (string) $templateData['bill_link'])) {
+            return $message;
+        }
+
+        return trim($message).' View/print: '.$templateData['bill_link'];
     }
 
     /**

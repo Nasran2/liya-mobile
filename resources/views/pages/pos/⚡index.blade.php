@@ -26,7 +26,7 @@ new #[Title('POS Terminal')] class extends Component
     public array $cart = [];
 
     // Checkout configurations
-    public int|string|null $customer_id = null;
+    public int|string $customer_id = '';
     public $discount = 0.00;
     public string $discount_type = 'fixed'; // fixed, percentage
     public $tax = 0.00;
@@ -403,7 +403,7 @@ new #[Title('POS Terminal')] class extends Component
 
         HoldOrder::query()->create([
             'hold_no' => 'HOLD-' . rand(1000, 9999),
-            'customer_id' => $this->customer_id,
+            'customer_id' => filled($this->customer_id) ? $this->customer_id : null,
             'items_json' => $this->cart,
             'subtotal' => $this->cartSubtotal,
             'discount' => $this->cartDiscountAmount,
@@ -422,7 +422,7 @@ new #[Title('POS Terminal')] class extends Component
     public function resumeHeldOrder(int $holdId): void
     {
         $hold = HoldOrder::query()->findOrFail($holdId);
-        $this->customer_id = $hold->customer_id;
+        $this->customer_id = $hold->customer_id ?? '';
         $this->cart = $hold->items_json;
         $this->discount = (float) $hold->discount;
         $this->tax = (float) $hold->tax;
@@ -703,7 +703,7 @@ new #[Title('POS Terminal')] class extends Component
     {
         $this->reset('cart', 'discount', 'discount_type', 'tax', 'paid_amount', 'payment_method', 'payment_reference', 'cheque_bank', 'cheque_no', 'cheque_date', 'notes', 'customerSearch', 'paymentRows');
         $this->paymentRows = [$this->blankPaymentRow()];
-        $this->customer_id = null;
+        $this->customer_id = '';
     }
 
     public function closeSuccess(): void
@@ -1706,7 +1706,7 @@ new #[Title('POS Terminal')] class extends Component
 
                     <div class="mt-3">
                         <flux:select wire:model.live="customer_id" required>
-                            <option value="" disabled>{{ __('-- Select the customer --') }}</option>
+                            <option value="">{{ __('-- Select the customer --') }}</option>
                             @foreach ($this->customers as $cust)
                                 <option value="{{ $cust->id }}">{{ $cust->name }} ({{ $cust->phone ?: 'Walk-in' }})</option>
                             @endforeach

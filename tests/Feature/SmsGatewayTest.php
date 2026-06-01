@@ -121,6 +121,54 @@ test('sale sms includes cash cheque hold due and public bill details', function 
     });
 });
 
+test('legacy sale sms template is enriched with cheque hold and bill link', function () {
+    enableSmsSettings();
+    Setting::set('sms_template_sale', 'Hi {customer_name}, thank you for your purchase of Rs {total} at {business_name}. Inv: {invoice_no}. Paid: Rs {paid}, Due: Rs {due}.', 'sms');
+    Http::fake(['textit.biz/*' => Http::response('OK:SMS123')]);
+
+    $sale = createSmsSale(2450);
+    $sale->update([
+        'paid_amount' => 250,
+        'due_amount' => 0,
+        'payment_status' => 'cheque_pending',
+    ]);
+    $sale->payments()->create([
+        'amount' => 250,
+        'payment_method' => 'cash',
+        'date' => today(),
+    ]);
+    $sale->payments()->create([
+        'amount' => 1200,
+        'payment_method' => 'cheque',
+        'date' => today(),
+        'reference' => '32132',
+        'cheque_no' => '32132',
+        'cheque_date' => today()->addDays(2),
+        'cheque_status' => 'pending',
+    ]);
+    $sale->payments()->create([
+        'amount' => 1000,
+        'payment_method' => 'cheque',
+        'date' => today(),
+        'reference' => '876',
+        'cheque_no' => '876',
+        'cheque_date' => today()->addDays(2),
+        'cheque_status' => 'pending',
+    ]);
+
+    app(SmsNotificationService::class)->notifySaleCreated($sale);
+
+    Http::assertSent(function (Request $request) use ($sale): bool {
+        $text = $request->data()['text'];
+
+        return str_contains($text, 'Cash Rs 250.00')
+            && str_contains($text, '32132 '.today()->addDays(2)->toDateString().' Rs 1,200.00 (Pending)')
+            && str_contains($text, '876 '.today()->addDays(2)->toDateString().' Rs 1,000.00 (Pending)')
+            && str_contains($text, 'Hold Rs 2,200.00')
+            && str_contains($text, route('public.bill', ['sale' => $sale->invoice_no]));
+    });
+});
+
 test('cheque passed sms includes cheque details and public bill link', function () {
     enableSmsSettings();
     Setting::set('sms_template_cheque_passed', 'Passed {cheque_no} {cheque_date} Rs {payment_amount} Hold Rs {hold_amount} Due Rs {due} View {bill_link}', 'sms');

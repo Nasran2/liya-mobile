@@ -55,7 +55,7 @@ new #[Title('System Settings')] class extends Component
     public string $userRole = 'sales_staff';
     public bool $userIsActive = true;
 
-    public function mount(): void
+    public function mount()
     {
         return $this->redirect(route('settings.business'), navigate: true);
     }
@@ -419,7 +419,7 @@ new #[Title('System Settings')] class extends Component
                     <flux:input wire:model="sms_textit_base_url" :label="__('Gateway Dispatch Base URL')" required />
 
                     <div class="border-t border-zinc-100 pt-4">
-                        <flux:textarea wire:model="sms_template_sale" :label="__('Sale Invoice SMS Template')" rows="3" description="Variables: {customer_name}, {invoice_no}, {total}, {paid}, {due}, {business_name}" />
+                        <flux:textarea wire:model="sms_template_sale" :label="__('Sale Invoice SMS Template')" rows="3" description="Variables: {customer_name}, {invoice_no}, {total}, {paid}, {cash_payment}, {cheque_payments}, {hold_amount}, {due}, {bill_link}, {business_name}" />
                     </div>
 
                     <div>
