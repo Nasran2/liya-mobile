@@ -2,11 +2,9 @@
 
 use App\Models\Customer;
 use App\Models\Sale;
-use App\Models\SaleItem;
-use App\Models\SaleReturn;
-use App\Models\Product;
 use App\Models\Setting;
 use App\Services\ActivityLogger;
+use App\Services\SaleReturnService;
 use App\Services\SmsNotificationService;
 use App\Services\TextItSmsService;
 use Flux\Flux;
@@ -120,110 +118,35 @@ new #[Title('Sales Receipts')] class extends Component
         }
     }
 
-    public function submitReturn(TextItSmsService $smsService): void
+    public function submitReturn(SaleReturnService $returnService, TextItSmsService $smsService): void
     {
         $this->validate([
             'returnItems' => 'required|array',
-            'returnType' => 'required|string',
+            'returnType' => 'required|in:cash_refund,adjust_due,exchange',
             'returnNotes' => 'nullable|string',
         ]);
 
-        $sale = Sale::query()->with(['customer', 'items'])->findOrFail($this->viewingSaleId);
+        $sale = Sale::query()->with(['customer', 'items.product'])->findOrFail($this->viewingSaleId);
         $customer = $sale->customer;
 
-        // Calculate refund grand total
         $refundTotal = 0.00;
-        $itemsToReturn = [];
-        foreach ($this->returnItems as $prodId => $item) {
+        foreach ($this->returnItems as $item) {
             if ($item['quantity'] > 0) {
                 $refundTotal += $item['subtotal'];
-                $itemsToReturn[] = array_merge($item, ['product_id' => $prodId]);
             }
         }
 
-        if ($refundTotal <= 0) {
-            Flux::toast(variant: 'danger', text: __('Select at least one product quantity to return.'));
-            return;
-        }
-
-        // Handle calculations & logic bounds based on type
-        $adjustedAmount = 0.00;
-        $refundAmount = 0.00;
-
-        if ($this->returnType === 'adjust_due') {
-            if ($sale->due_amount <= 0) {
-                Flux::toast(variant: 'danger', text: __('No outstanding dues exist on this invoice to adjust.'));
-                return;
-            }
-
-            // Adjust invoice due
-            $adjustedAmount = min($refundTotal, $sale->due_amount);
-            $refundAmount = max(0.00, $refundTotal - $adjustedAmount);
-
-            // Decrement invoice due & customer account due
-            $sale->decrement('due_amount', $adjustedAmount);
-            $customer->decrement('due_balance', $adjustedAmount);
-
-            // Re-eval payment status
-            $newDue = $sale->due_amount;
-            if ($newDue <= 0) {
-                $sale->update(['payment_status' => 'paid']);
-            }
-        } else {
-            $refundAmount = $refundTotal;
-        }
-
-        // Generate return ref
-        $returnNo = 'RET-' . date('ymd') . '-' . rand(100, 999);
-
-        // 1. Create Return transaction
-        $retLog = SaleReturn::query()->create([
-            'sale_id' => $sale->id,
-            'customer_id' => $customer->id,
-            'invoice_no' => $returnNo,
-            'date' => date('Y-m-d'),
-            'return_type' => $this->returnType,
-            'refund_amount' => $refundAmount,
-            'adjusted_amount' => $adjustedAmount,
-            'notes' => $this->returnNotes ?: 'POS Customer Return request.',
-        ]);
-
-        // 2. Process items returned
-        foreach ($itemsToReturn as $item) {
-            $retLog->items()->create([
-                'product_id' => $item['product_id'],
-                'quantity' => $item['quantity'],
-                'refund_price' => $item['refund_price'],
-                'subtotal' => $item['subtotal'],
-            ]);
-
-            // Restock returned items back to store inventory
-            $product = Product::query()->findOrFail($item['product_id']);
-            $product->increment('stock_quantity', $item['quantity']);
-        }
-
-        // 3. Log outward payment if cash refunded
-        if ($refundAmount > 0 && $this->returnType === 'cash_refund') {
-            $retLog->payments()->create([
-                'amount' => $refundAmount,
-                'payment_method' => 'cash',
-                'date' => date('Y-m-d'),
-                'notes' => 'Cash refund for sale return ' . $returnNo,
-            ]);
-        }
-
-        ActivityLogger::log('pos_return', "Processed Customer Return {$returnNo} for invoice {$sale->invoice_no}. Total refund: Rs {$refundTotal}.");
+        $retLog = $returnService->process($sale, $this->returnItems, $this->returnType, $this->returnNotes);
         Flux::toast(variant: 'success', text: __('Return transaction logged successfully.'));
 
-        // 4. SMS Alert Dispatch
-        if (Setting::get('sms_enabled') === '1' && ! empty($customer->phone) && $customer->phone !== '0000000000') {
+        if ($customer && Setting::get('sms_enabled') === '1' && ! empty($customer->phone) && $customer->phone !== '0000000000') {
             $template = Setting::get('sms_template_return', 'Processed return for invoice {invoice_no}. Refund: Rs {total}.');
             $msg = $smsService->parseTemplate($template, [
                 'customer_name' => $customer->name,
                 'invoice_no' => $sale->invoice_no,
                 'total' => number_format($refundTotal, 2),
             ]);
-            $smsService->sendSms($customer->phone, $msg, 'RET-' . $retLog->id);
+            $smsService->sendSms($customer->phone, $msg, 'RET-'.$retLog->id);
         }
 
         $this->returnModalOpen = false;
@@ -960,7 +883,7 @@ new #[Title('Sales Receipts')] class extends Component
                     @if ($this->selectedSale?->due_amount > 0)
                         <option value="adjust_due">Reduce Invoice Due Account Balance</option>
                     @endif
-                    <option value="exchange">Exchange Credit Note</option>
+                    <option value="exchange">Same Product Exchange (Record cost as expense)</option>
                 </flux:select>
 
                 <flux:textarea wire:model="returnNotes" :label="__('Ledger Return Notes')" rows="2" placeholder="Returned accessories." />

@@ -11,9 +11,9 @@ use Illuminate\Support\Collection;
 class SmsNotificationService
 {
     public const DEFAULT_TEMPLATES = [
-        'sms_template_sale' => 'Hi {cus_name}, thank you for shopping at {business_name}. Bill {invoice_no}: Rs {total}, paid Rs {paid}, due Rs {due}. View: {bill_link}',
+        'sms_template_sale' => 'Hi {cus_name}, Bill {invoice_no}: total Rs {total}. Cash Rs {cash_payment}. Cheques: {cheque_payments}. Hold Rs {hold_amount}. Due Rs {due}. View/print PDF: {bill_link}',
         'sms_template_payment' => 'Hi {cus_name}, payment received for bill {invoice_no}. Paid now: Rs {payment_amount}. Remaining due: Rs {due}. View: {bill_link} - {business_name}',
-        'sms_template_cheque_passed' => 'Hi {cus_name}, your cheque payment for bill {invoice_no} has passed. Amount: Rs {payment_amount}. Remaining due: Rs {due}. View: {bill_link}',
+        'sms_template_cheque_passed' => 'Hi {cus_name}, cheque {cheque_no} dated {cheque_date} for bill {invoice_no} has passed. Amount Rs {payment_amount}. Hold Rs {hold_amount}. Due Rs {due}. View: {bill_link}',
         'sms_template_cheque_reminder' => 'Hi {cus_name}, reminder: cheque {cheque_no} for bill {invoice_no} is due on {cheque_date}. Amount: Rs {payment_amount}. Contact {business_phone} if needed.',
     ];
 
@@ -28,6 +28,9 @@ class SmsNotificationService
         '{total}' => 'Invoice grand total.',
         '{paid}' => 'Total paid amount on the invoice.',
         '{due}' => 'Remaining invoice due amount.',
+        '{cash_payment}' => 'Cash amount paid on this invoice.',
+        '{cheque_payments}' => 'Cheque numbers, dates, and amounts on this invoice.',
+        '{hold_amount}' => 'Pending cheque hold amount before the cheque is passed.',
         '{payment_amount}' => 'Amount paid in the latest payment or cheque.',
         '{payment_method}' => 'Payment method such as cash, card, bank transfer, or cheque.',
         '{cheque_bank}' => 'Cheque bank name from the payment.',
@@ -154,10 +157,16 @@ class SmsNotificationService
             return false;
         }
 
-        $message = $this->smsService->parseTemplate(
-            $template,
-            $this->smsService->saleTemplateData($sale, $extra),
-        );
+        $templateData = $this->smsService->saleTemplateData($sale, $extra);
+        $message = $this->smsService->parseTemplate($template, $templateData);
+
+        if ($templateKey === 'sms_template_sale') {
+            $message = $this->withSalePaymentSummary($message, $templateData);
+        }
+
+        if ($templateKey === 'sms_template_cheque_passed') {
+            $message = $this->withBillLink($message, $templateData);
+        }
 
         $result = $this->smsService->sendSms($sale->customer->phone, $message, $ref);
 
@@ -168,6 +177,34 @@ class SmsNotificationService
     {
         return Setting::get('sms_enabled', '0') === '1'
             && Setting::get($settingKey, '1') === '1';
+    }
+
+    /**
+     * @param  array<string, string>  $templateData
+     */
+    private function withSalePaymentSummary(string $message, array $templateData): string
+    {
+        $summary = " Cash Rs {$templateData['cash_payment']}. Cheques: {$templateData['cheque_payments']}. Hold Rs {$templateData['hold_amount']}. Due Rs {$templateData['due']}. View/print: {$templateData['bill_link']}";
+
+        if (str_contains($message, (string) $templateData['bill_link'])
+            && str_contains($message, (string) $templateData['hold_amount'])
+            && str_contains($message, (string) $templateData['cheque_payments'])) {
+            return $message;
+        }
+
+        return trim($message).$summary;
+    }
+
+    /**
+     * @param  array<string, string>  $templateData
+     */
+    private function withBillLink(string $message, array $templateData): string
+    {
+        if (str_contains($message, (string) $templateData['bill_link'])) {
+            return $message;
+        }
+
+        return trim($message).' View/print: '.$templateData['bill_link'];
     }
 
     /**

@@ -116,6 +116,9 @@ class TextItSmsService
             '{total}' => $data['total'] ?? '0.00',
             '{paid}' => $data['paid'] ?? '0.00',
             '{due}' => $data['due'] ?? '0.00',
+            '{cash_payment}' => $data['cash_payment'] ?? '0.00',
+            '{cheque_payments}' => $data['cheque_payments'] ?? 'None',
+            '{hold_amount}' => $data['hold_amount'] ?? '0.00',
             '{payment_amount}' => $data['payment_amount'] ?? $data['paid'] ?? '0.00',
             '{payment_method}' => $data['payment_method'] ?? '',
             '{cheque_bank}' => $data['cheque_bank'] ?? '',
@@ -136,10 +139,28 @@ class TextItSmsService
      */
     public function saleTemplateData(Sale $sale, array $extra = []): array
     {
-        $sale->loadMissing('customer');
+        $sale->loadMissing('customer', 'payments');
         $customer = $sale->customer;
 
         $extra = array_map(static fn (mixed $value): string => (string) $value, $extra);
+        $cashPayment = (float) $sale->payments
+            ->where('payment_method', 'cash')
+            ->sum('amount');
+        $holdAmount = (float) $sale->payments
+            ->where('payment_method', 'cheque')
+            ->where('cheque_status', 'pending')
+            ->sum('amount');
+        $chequePayments = $sale->payments
+            ->where('payment_method', 'cheque')
+            ->values()
+            ->map(function ($payment): string {
+                $chequeNo = $payment->cheque_no ?: $payment->reference ?: 'N/A';
+                $chequeDate = $payment->cheque_date?->format('Y-m-d') ?? 'No date';
+                $status = $payment->cheque_status ? str($payment->cheque_status)->headline()->toString() : 'Cheque';
+
+                return "{$chequeNo} {$chequeDate} Rs ".$this->formatAmount((float) $payment->amount)." ({$status})";
+            })
+            ->implode(', ');
 
         return array_merge([
             'cus_name' => $customer?->name ?? 'Customer',
@@ -152,6 +173,9 @@ class TextItSmsService
             'total' => $this->formatAmount((float) $sale->grand_total),
             'paid' => $this->formatAmount((float) $sale->paid_amount),
             'due' => $this->formatAmount((float) $sale->due_amount),
+            'cash_payment' => $this->formatAmount($cashPayment),
+            'cheque_payments' => filled($chequePayments) ? $chequePayments : 'None',
+            'hold_amount' => $this->formatAmount($holdAmount),
             'bill_link' => route('public.bill', ['sale' => $sale->invoice_no]),
             'date' => $sale->date?->format('Y-m-d') ?? now()->toDateString(),
         ], $extra);

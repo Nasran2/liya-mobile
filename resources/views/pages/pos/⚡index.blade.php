@@ -26,7 +26,7 @@ new #[Title('POS Terminal')] class extends Component
     public array $cart = [];
 
     // Checkout configurations
-    public int $customer_id = 1; // Default to Walk-in Customer
+    public int|string $customer_id = '';
     public $discount = 0.00;
     public string $discount_type = 'fixed'; // fixed, percentage
     public $tax = 0.00;
@@ -36,6 +36,7 @@ new #[Title('POS Terminal')] class extends Component
     public string $cheque_bank = '';
     public string $cheque_no = '';
     public string $cheque_date = '';
+    public array $paymentRows = [];
     public string $notes = '';
     public string $customerSearch = '';
     public string $quickCustomerName = '';
@@ -109,6 +110,7 @@ new #[Title('POS Terminal')] class extends Component
         }
 
         $this->allowNegativeStock = Setting::get('pos_allow_negative_stock', '0') !== '0';
+        $this->paymentRows = [$this->blankPaymentRow()];
 
         if ($sale && $sale->exists) {
             $this->editingSale = $sale;
@@ -141,7 +143,6 @@ new #[Title('POS Terminal')] class extends Component
             }
             $this->paid_amount = (float) $sale->paid_amount;
         } else {
-            // Get default customer id from settings or find first
             $defaultCust = Customer::query()->where('name', 'Walk-in Customer')->first();
             if ($defaultCust) {
                 $this->customer_id = $defaultCust->id;
@@ -208,6 +209,7 @@ new #[Title('POS Terminal')] class extends Component
                 $this->cart[$index]['quantity']++;
                 $this->syncCartItemSubtotal($index);
                 $this->paid_amount = $this->cartTotal;
+                $this->syncLegacyPaymentToFirstRowWhenOnlyOneRow();
                 $this->dispatch('play-beep');
                 return;
             }
@@ -231,6 +233,7 @@ new #[Title('POS Terminal')] class extends Component
         ];
 
         $this->paid_amount = $this->cartTotal;
+        $this->syncLegacyPaymentToFirstRowWhenOnlyOneRow();
         $this->dispatch('play-beep');
     }
 
@@ -249,6 +252,7 @@ new #[Title('POS Terminal')] class extends Component
             $this->cart[$index]['quantity'] = $newQty;
             $this->syncCartItemSubtotal($index);
             $this->paid_amount = $this->cartTotal;
+            $this->syncLegacyPaymentToFirstRowWhenOnlyOneRow();
         }
     }
 
@@ -266,6 +270,7 @@ new #[Title('POS Terminal')] class extends Component
 
             $this->syncCartItemSubtotal($index);
             $this->paid_amount = $this->cartTotal;
+            $this->syncLegacyPaymentToFirstRowWhenOnlyOneRow();
         }
     }
 
@@ -332,6 +337,7 @@ new #[Title('POS Terminal')] class extends Component
         $this->syncCartItemSubtotal($index);
 
         $this->paid_amount = $this->cartTotal;
+        $this->syncLegacyPaymentToFirstRowWhenOnlyOneRow();
         $this->closeCartItemEditor();
     }
 
@@ -389,6 +395,7 @@ new #[Title('POS Terminal')] class extends Component
             unset($this->cart[$index]);
             $this->cart = array_values($this->cart);
             $this->paid_amount = $this->cartTotal;
+            $this->syncLegacyPaymentToFirstRowWhenOnlyOneRow();
         }
     }
 
@@ -401,7 +408,7 @@ new #[Title('POS Terminal')] class extends Component
 
         HoldOrder::query()->create([
             'hold_no' => 'HOLD-' . rand(1000, 9999),
-            'customer_id' => $this->customer_id,
+            'customer_id' => filled($this->customer_id) ? $this->customer_id : null,
             'items_json' => $this->cart,
             'subtotal' => $this->cartSubtotal,
             'discount' => $this->cartDiscountAmount,
@@ -420,11 +427,12 @@ new #[Title('POS Terminal')] class extends Component
     public function resumeHeldOrder(int $holdId): void
     {
         $hold = HoldOrder::query()->findOrFail($holdId);
-        $this->customer_id = $hold->customer_id ?? 1;
+        $this->customer_id = $hold->customer_id ?? '';
         $this->cart = $hold->items_json;
         $this->discount = (float) $hold->discount;
         $this->tax = (float) $hold->tax;
         $this->paid_amount = $this->cartTotal;
+        $this->syncLegacyPaymentToFirstRowWhenOnlyOneRow();
         
         $hold->delete();
         $this->loadHeldOrders();
@@ -432,51 +440,118 @@ new #[Title('POS Terminal')] class extends Component
         Flux::toast(variant: 'success', text: __('Cart session resumed.'));
     }
 
+    public function addPaymentRow(string $method = 'cheque'): void
+    {
+        $this->paymentRows[] = $this->blankPaymentRow($method);
+    }
+
+    public function removePaymentRow(int $index): void
+    {
+        if (! isset($this->paymentRows[$index])) {
+            return;
+        }
+
+        unset($this->paymentRows[$index]);
+        $this->paymentRows = array_values($this->paymentRows);
+
+        if (count($this->paymentRows) === 0) {
+            $this->paymentRows = [$this->blankPaymentRow()];
+        }
+
+        $this->syncFirstPaymentRowToLegacy();
+    }
+
+    public function updatedPaidAmount(): void
+    {
+        $this->syncLegacyPaymentToFirstRow();
+    }
+
+    public function updatedPaymentMethod(): void
+    {
+        $this->syncLegacyPaymentToFirstRow();
+    }
+
+    public function updatedPaymentReference(): void
+    {
+        $this->syncLegacyPaymentToFirstRow();
+    }
+
+    public function updatedChequeBank(): void
+    {
+        $this->syncLegacyPaymentToFirstRow();
+    }
+
+    public function updatedChequeNo(): void
+    {
+        $this->syncLegacyPaymentToFirstRow();
+    }
+
+    public function updatedChequeDate(): void
+    {
+        $this->syncLegacyPaymentToFirstRow();
+    }
+
     public function submitCheckout(SmsNotificationService $smsNotificationService): void
     {
+        $this->syncLegacyPaymentToFirstRowWhenRowsAreEmpty();
+
         $rules = [
             'customer_id' => 'required|exists:customers,id',
             'cart' => 'required|array|min:1',
             'discount' => 'required|numeric|min:0',
             'tax' => 'required|numeric|min:0',
-            'paid_amount' => 'required|numeric|min:0',
-            'payment_method' => 'required|in:cash,card,qr,bank_transfer,cheque',
-            'payment_reference' => 'nullable|string|max:100',
+            'paymentRows' => 'required|array|min:1',
+            'paymentRows.*.amount' => 'required|numeric|min:0',
+            'paymentRows.*.method' => 'required|in:cash,card,qr,bank_transfer,cheque',
+            'paymentRows.*.reference' => 'nullable|string|max:100',
+            'paymentRows.*.cheque_bank' => 'nullable|string|max:100',
+            'paymentRows.*.cheque_no' => 'nullable|string|max:100',
+            'paymentRows.*.cheque_date' => 'nullable|date',
         ];
-
-        if ($this->payment_method === 'cheque') {
-            $rules['paid_amount'] = 'required|numeric|min:0.01';
-            $rules['cheque_bank'] = 'nullable|string|max:100';
-            $rules['cheque_no'] = 'nullable|string|max:100';
-            $rules['cheque_date'] = 'required|date';
-        }
 
         $this->validate($rules);
 
-        if ($this->payment_method === 'cheque') {
-            $customer = \App\Models\Customer::query()->find($this->customer_id);
+        $paymentRows = $this->normalisedPaymentRows();
+        $hasChequePayment = collect($paymentRows)->contains(fn (array $paymentRow): bool => $paymentRow['method'] === 'cheque');
+
+        if ($hasChequePayment) {
+            $customer = Customer::query()->find($this->customer_id);
             if (! $customer || $customer->phone === '0000000000' || strtolower($customer->name) === 'walk-in customer') {
                 $this->addError('customer_id', __('Cheque payments are not allowed for Walk-in Customer. Please select a registered customer.'));
                 return;
             }
         }
 
+        foreach ($paymentRows as $index => $paymentRow) {
+            if ($paymentRow['method'] === 'cheque' && blank($paymentRow['cheque_date'])) {
+                $this->addError("paymentRows.{$index}.cheque_date", __('Cheque date is required.'));
+                return;
+            }
+        }
+
         $subtotal = $this->cartSubtotal;
         $grandTotal = $this->cartTotal;
-        $isChequePayment = $this->payment_method === 'cheque';
-        $capturedPaidAmount = $isChequePayment ? 0.00 : min((float) $this->paid_amount, $grandTotal);
-        $heldChequeAmount = $isChequePayment ? min((float) $this->paid_amount, $grandTotal) : 0.00;
+
+        if ($this->paymentRowsTotal($paymentRows) > $grandTotal) {
+            $this->addError('paymentRows', __('Payment rows cannot exceed the sale grand total.'));
+            return;
+        }
+
+        $capturedPaidAmount = $this->capturedPaymentRowsTotal($paymentRows);
+        $heldChequeAmount = $this->chequePaymentRowsTotal($paymentRows);
         $dueAmount = max(0.00, $grandTotal - $capturedPaidAmount - $heldChequeAmount);
 
-        if (! $isChequePayment && $dueAmount > 0 && Setting::get('pos_allow_due_sale', '1') === '0') {
+        if ($dueAmount > 0 && Setting::get('pos_allow_due_sale', '1') === '0') {
             Flux::toast(variant: 'danger', text: __('Due sales disabled in system settings. Full payment required.'));
             return;
         }
 
-        $paymentStatus = $isChequePayment ? 'cheque_pending' : 'due';
-        if (! $isChequePayment && $capturedPaidAmount >= $grandTotal) {
+        $paymentStatus = 'due';
+        if ($heldChequeAmount > 0) {
+            $paymentStatus = $dueAmount > 0 ? 'partial' : 'cheque_pending';
+        } elseif ($capturedPaidAmount >= $grandTotal) {
             $paymentStatus = 'paid';
-        } elseif (! $isChequePayment && $capturedPaidAmount > 0) {
+        } elseif ($capturedPaidAmount > 0) {
             $paymentStatus = 'partial';
         }
 
@@ -563,26 +638,24 @@ new #[Title('POS Terminal')] class extends Component
         }
 
         // 3. Log cashier polymorphic payment
-        if ((float) $this->paid_amount > 0) {
-            $paymentAmount = min((float) $this->paid_amount, $grandTotal);
-            $paymentPayload = [
-                'amount' => $paymentAmount,
-                'payment_method' => $this->payment_method,
-                'date' => date('Y-m-d'),
-                'reference' => $isChequePayment ? ($this->cheque_no ?: $this->payment_reference) : $this->payment_reference,
-                'notes' => $isChequePayment ? 'POS cheque payment on hold until cleared.' : 'POS Terminal Sale Checkout.',
-            ];
-
-            if ($isChequePayment) {
-                $paymentPayload = array_merge($paymentPayload, [
-                    'cheque_bank' => $this->cheque_bank ?: null,
-                    'cheque_no' => $this->cheque_no ?: null,
-                    'cheque_date' => $this->cheque_date,
-                    'cheque_status' => 'pending',
-                ]);
+        foreach ($paymentRows as $paymentRow) {
+            if ($paymentRow['amount'] <= 0) {
+                continue;
             }
 
-            $sale->payments()->create($paymentPayload);
+            $isChequePayment = $paymentRow['method'] === 'cheque';
+
+            $sale->payments()->create([
+                'amount' => $paymentRow['amount'],
+                'payment_method' => $paymentRow['method'],
+                'date' => date('Y-m-d'),
+                'reference' => $isChequePayment ? $paymentRow['cheque_no'] : $paymentRow['reference'],
+                'cheque_bank' => $isChequePayment ? $paymentRow['cheque_bank'] : null,
+                'cheque_no' => $isChequePayment ? $paymentRow['cheque_no'] : null,
+                'cheque_date' => $isChequePayment ? $paymentRow['cheque_date'] : null,
+                'cheque_status' => $isChequePayment ? 'pending' : null,
+                'notes' => $isChequePayment ? 'POS cheque payment on hold until cleared.' : 'POS Terminal Sale Checkout.',
+            ]);
         }
 
         // 4. Update customer outstanding receivables account
@@ -633,11 +706,10 @@ new #[Title('POS Terminal')] class extends Component
 
     public function resetCart(): void
     {
-        $this->reset('cart', 'discount', 'discount_type', 'tax', 'paid_amount', 'payment_method', 'payment_reference', 'cheque_bank', 'cheque_no', 'cheque_date', 'notes', 'customerSearch');
+        $this->reset('cart', 'discount', 'discount_type', 'tax', 'paid_amount', 'payment_method', 'payment_reference', 'cheque_bank', 'cheque_no', 'cheque_date', 'notes', 'customerSearch', 'paymentRows');
+        $this->paymentRows = [$this->blankPaymentRow()];
         $defaultCust = Customer::query()->where('name', 'Walk-in Customer')->first();
-        if ($defaultCust) {
-            $this->customer_id = $defaultCust->id;
-        }
+        $this->customer_id = $defaultCust ? $defaultCust->id : '';
     }
 
     public function closeSuccess(): void
@@ -660,12 +732,11 @@ new #[Title('POS Terminal')] class extends Component
                         ->orWhere('email', 'like', '%' . $search . '%');
                 });
             })
-            ->orderByRaw("name = 'Walk-in Customer' DESC")
             ->orderBy('name')
             ->limit(25)
             ->get();
 
-        if ($this->customer_id) {
+        if (filled($this->customer_id)) {
             $selectedCustomer = Customer::query()->find($this->customer_id);
 
             if ($selectedCustomer && ! $customers->contains('id', $selectedCustomer->id)) {
@@ -679,6 +750,10 @@ new #[Title('POS Terminal')] class extends Component
     #[Computed]
     public function selectedCustomer(): ?Customer
     {
+        if (blank($this->customer_id)) {
+            return null;
+        }
+
         return Customer::query()->find($this->customer_id);
     }
 
@@ -706,11 +781,115 @@ new #[Title('POS Terminal')] class extends Component
     #[Computed]
     public function checkoutDuePreview()
     {
-        if ($this->payment_method === 'cheque') {
-            return $this->cartTotal;
+        return max(0.00, $this->cartTotal - $this->paymentRowsTotalAmount);
+    }
+
+    #[Computed]
+    public function paymentRowsTotalAmount()
+    {
+        return $this->paymentRowsTotal($this->normalisedPaymentRows());
+    }
+
+    #[Computed]
+    public function checkoutHoldPreview()
+    {
+        return $this->chequePaymentRowsTotal($this->normalisedPaymentRows());
+    }
+
+    private function blankPaymentRow(string $method = 'cash'): array
+    {
+        return [
+            'amount' => 0.00,
+            'method' => $method,
+            'reference' => '',
+            'cheque_bank' => '',
+            'cheque_no' => '',
+            'cheque_date' => '',
+        ];
+    }
+
+    private function syncLegacyPaymentToFirstRow(): void
+    {
+        if (! isset($this->paymentRows[0])) {
+            $this->paymentRows[0] = $this->blankPaymentRow($this->payment_method);
         }
 
-        return max(0.00, $this->cartTotal - (float) $this->paid_amount);
+        $this->paymentRows[0]['amount'] = (float) $this->paid_amount;
+        $this->paymentRows[0]['method'] = $this->payment_method;
+        $this->paymentRows[0]['reference'] = $this->payment_reference;
+        $this->paymentRows[0]['cheque_bank'] = $this->cheque_bank;
+        $this->paymentRows[0]['cheque_no'] = $this->cheque_no;
+        $this->paymentRows[0]['cheque_date'] = $this->cheque_date;
+    }
+
+    private function syncLegacyPaymentToFirstRowWhenRowsAreEmpty(): void
+    {
+        $hasEnteredRows = collect($this->paymentRows)
+            ->contains(fn (array $paymentRow): bool => (float) ($paymentRow['amount'] ?? 0) > 0);
+
+        if (! $hasEnteredRows && (float) $this->paid_amount > 0) {
+            $this->syncLegacyPaymentToFirstRow();
+        }
+    }
+
+    private function syncLegacyPaymentToFirstRowWhenOnlyOneRow(): void
+    {
+        if (count($this->paymentRows) !== 1) {
+            return;
+        }
+
+        $this->syncLegacyPaymentToFirstRow();
+    }
+
+    private function syncFirstPaymentRowToLegacy(): void
+    {
+        $firstRow = $this->paymentRows[0] ?? $this->blankPaymentRow();
+
+        $this->paid_amount = (float) ($firstRow['amount'] ?? 0);
+        $this->payment_method = (string) ($firstRow['method'] ?? 'cash');
+        $this->payment_reference = (string) ($firstRow['reference'] ?? '');
+        $this->cheque_bank = (string) ($firstRow['cheque_bank'] ?? '');
+        $this->cheque_no = (string) ($firstRow['cheque_no'] ?? '');
+        $this->cheque_date = (string) ($firstRow['cheque_date'] ?? '');
+    }
+
+    private function normalisedPaymentRows(): array
+    {
+        return collect($this->paymentRows)
+            ->map(function (array $row): array {
+                $method = in_array($row['method'] ?? 'cash', ['cash', 'card', 'qr', 'bank_transfer', 'cheque'], true)
+                    ? $row['method']
+                    : 'cash';
+
+                return [
+                    'amount' => round(max(0, (float) ($row['amount'] ?? 0)), 2),
+                    'method' => $method,
+                    'reference' => (string) ($row['reference'] ?? ''),
+                    'cheque_bank' => $method === 'cheque' ? (string) ($row['cheque_bank'] ?? '') : '',
+                    'cheque_no' => $method === 'cheque' ? (string) ($row['cheque_no'] ?? '') : '',
+                    'cheque_date' => $method === 'cheque' ? (string) ($row['cheque_date'] ?? '') : null,
+                ];
+            })
+            ->filter(fn (array $row): bool => $row['amount'] > 0)
+            ->values()
+            ->all();
+    }
+
+    private function paymentRowsTotal(array $paymentRows): float
+    {
+        return round((float) collect($paymentRows)->sum('amount'), 2);
+    }
+
+    private function capturedPaymentRowsTotal(array $paymentRows): float
+    {
+        return round((float) collect($paymentRows)
+            ->whereIn('method', ['cash', 'card', 'qr', 'bank_transfer'])
+            ->sum('amount'), 2);
+    }
+
+    private function chequePaymentRowsTotal(array $paymentRows): float
+    {
+        return round((float) collect($paymentRows)->where('method', 'cheque')->sum('amount'), 2);
     }
 
     #[Computed]
@@ -1533,6 +1712,7 @@ new #[Title('POS Terminal')] class extends Component
 
                     <div class="mt-3">
                         <flux:select wire:model.live="customer_id" required>
+                            <option value="">{{ __('-- Select the customer --') }}</option>
                             @foreach ($this->customers as $cust)
                                 <option value="{{ $cust->id }}">{{ $cust->name }} ({{ $cust->phone ?: 'Walk-in' }})</option>
                             @endforeach
@@ -1571,54 +1751,100 @@ new #[Title('POS Terminal')] class extends Component
 
                 <!-- Payment details -->
                 <div class="flex flex-col gap-3">
-                    <h4 class="text-xs font-semibold text-zinc-400 uppercase tracking-wider">{{ __('Record Payment Settlement') }}</h4>
-                    
-                    <flux:input wire:model.live="paid_amount" :label="$payment_method === 'cheque' ? __('Cheque Amount (Rs)') : __('Amount Collected (Rs)')" type="number" step="0.01" required />
-
-                    <flux:select wire:model.live="payment_method" :label="__('Payment Mode')">
-                        <option value="cash">Cash Settlement</option>
-                        <option value="card">Business Card Swipe</option>
-                        <option value="qr">LankaQR scan</option>
-                        <option value="bank_transfer">Direct Bank Deposit</option>
-                        <option value="cheque">Cheque Payment Hold</option>
-                    </flux:select>
-
-                    <!-- LankaQR Scan Box Placeholder -->
-                    @if ($payment_method === 'qr')
-                    <div class="rounded-2xl border border-zinc-100 bg-zinc-50/50 p-4 flex flex-col items-center justify-center gap-2">
-                        <div class="border border-dashed border-zinc-300 rounded-xl p-3 bg-white flex items-center justify-center size-32 shadow-sm">
-                            <flux:icon.qr-code class="size-24 text-zinc-900" />
-                        </div>
-                        <span class="text-[10px] text-zinc-400 uppercase font-bold tracking-wider">LANKAQR MOCK SCAN</span>
-                    </div>
-                    @endif
-
-                    @if ($payment_method === 'cheque')
-                        <div class="rounded-3xl border border-amber-100 bg-amber-50/70 p-4">
-                            <div class="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-wider text-amber-700">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <h4 class="text-xs font-semibold uppercase tracking-wider text-zinc-400">{{ __('Record Payment Settlement') }}</h4>
+                        <div class="grid grid-cols-2 gap-2 sm:flex">
+                            <button type="button" wire:click="addPaymentRow('cash')" class="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 transition active:scale-95">
                                 <flux:icon.banknotes class="size-4" />
-                                {{ __('Cheque details') }}
-                            </div>
-                            <div class="grid gap-3">
-                                <div class="grid grid-cols-2 gap-3">
-                                    <flux:input wire:model="cheque_bank" :label="__('Bank (optional)')" placeholder="Bank name" />
-                                    <flux:input wire:model="cheque_no" :label="__('Cheque No (optional)')" placeholder="Cheque number" />
-                                </div>
-                                <flux:input wire:model="cheque_date" :label="__('Cheque Date')" type="date" required />
-                            </div>
-                            <p class="mt-3 text-xs font-semibold leading-relaxed text-amber-800">
-                                {{ __('Cheque payments stay on hold until marked passed. If still pending 7 days after the cheque date, the system marks it passed automatically when POS opens.') }}
-                            </p>
+                                {{ __('Cash') }}
+                            </button>
+                            <button type="button" wire:click="addPaymentRow('cheque')" class="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-black text-amber-700 transition active:scale-95">
+                                <flux:icon.plus class="size-4" />
+                                {{ __('Cheque') }}
+                            </button>
                         </div>
-                    @endif
+                    </div>
 
-                    @if ($paid_amount > 0 && $payment_method !== 'cheque')
-                        <flux:input wire:model="payment_reference" :label="__('Payment Slip # / Transaction Reference')" placeholder="cheque / TxID" />
-                    @endif
+                    @error('paymentRows')
+                        <p class="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700">{{ $message }}</p>
+                    @enderror
 
-                    <div class="flex justify-between text-xs rounded-2xl bg-zinc-50 border border-zinc-100 p-4">
-                        <span class="text-zinc-500 font-semibold">Remaining Customer Account Due</span>
-                        <span class="font-extrabold text-rose-600">Rs {{ number_format($this->checkoutDuePreview, 2) }}</span>
+                    <div class="grid gap-3">
+                        @foreach ($paymentRows as $index => $paymentRow)
+                            <div wire:key="checkout-payment-row-{{ $index }}" class="rounded-3xl border border-zinc-100 bg-white p-4 shadow-sm">
+                                <div class="mb-3 flex items-start justify-between gap-3">
+                                    <div>
+                                        <p class="text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                                            {{ __('Payment') }} #{{ $index + 1 }}
+                                        </p>
+                                        <p class="mt-0.5 text-xs font-semibold text-zinc-500">
+                                            {{ __('Cash, card, QR, bank transfer, or cheque') }}
+                                        </p>
+                                    </div>
+                                    @if (count($paymentRows) > 1)
+                                        <button type="button" wire:click="removePaymentRow({{ $index }})" class="text-xs font-black text-rose-500 transition active:scale-95">
+                                            {{ __('Remove') }}
+                                        </button>
+                                    @endif
+                                </div>
+
+                                <div class="grid gap-3 sm:grid-cols-2">
+                                    <flux:input wire:model.live.number="paymentRows.{{ $index }}.amount" :label="__('Amount (Rs)')" type="number" min="0" step="0.01" required inputmode="decimal" />
+                                    <flux:select wire:model.live="paymentRows.{{ $index }}.method" :label="__('Payment Mode')">
+                                        <option value="cash">{{ __('Cash Settlement') }}</option>
+                                        <option value="card">{{ __('Business Card Swipe') }}</option>
+                                        <option value="qr">{{ __('LankaQR scan') }}</option>
+                                        <option value="bank_transfer">{{ __('Direct Bank Deposit') }}</option>
+                                        <option value="cheque">{{ __('Cheque Payment Hold') }}</option>
+                                    </flux:select>
+                                </div>
+
+                                @if (($paymentRow['method'] ?? 'cash') === 'qr')
+                                    <div class="mt-3 flex flex-col items-center justify-center gap-2 rounded-2xl border border-zinc-100 bg-zinc-50/70 p-4">
+                                        <div class="flex size-28 items-center justify-center rounded-xl border border-dashed border-zinc-300 bg-white shadow-sm">
+                                            <flux:icon.qr-code class="size-20 text-zinc-900" />
+                                        </div>
+                                        <span class="text-[10px] font-bold uppercase tracking-wider text-zinc-400">LANKAQR MOCK SCAN</span>
+                                    </div>
+                                @elseif (($paymentRow['method'] ?? 'cash') === 'cheque')
+                                    <div class="mt-3 rounded-3xl border border-amber-100 bg-amber-50/70 p-4">
+                                        <div class="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-wider text-amber-700">
+                                            <flux:icon.banknotes class="size-4" />
+                                            {{ __('Cheque details') }}
+                                        </div>
+                                        <div class="grid gap-3 sm:grid-cols-2">
+                                            <flux:input wire:model="paymentRows.{{ $index }}.cheque_no" :label="__('Cheque No')" placeholder="Cheque number" />
+                                            <flux:input wire:model="paymentRows.{{ $index }}.cheque_bank" :label="__('Bank (optional)')" placeholder="Bank name" />
+                                            <div class="sm:col-span-2">
+                                                <flux:input wire:model="paymentRows.{{ $index }}.cheque_date" :label="__('Cheque Date')" type="date" required />
+                                            </div>
+                                        </div>
+                                        <p class="mt-3 text-xs font-semibold leading-relaxed text-amber-800">
+                                            {{ __('Cheque payments stay as hold amount until marked passed. They do not increase customer due unless the payment split is short.') }}
+                                        </p>
+                                    </div>
+                                @elseif ((float) ($paymentRow['amount'] ?? 0) > 0)
+                                    <div class="mt-3">
+                                        <flux:input wire:model="paymentRows.{{ $index }}.reference" :label="__('Payment Slip # / Transaction Reference')" placeholder="Receipt, slip, or TxID" />
+                                    </div>
+                                @endif
+                            </div>
+                        @endforeach
+                    </div>
+
+                    <div class="grid gap-2 text-xs sm:grid-cols-3">
+                        <div class="flex justify-between rounded-2xl border border-zinc-100 bg-zinc-50 p-4 sm:flex-col sm:gap-1">
+                            <span class="font-semibold text-zinc-500">{{ __('Payment Total') }}</span>
+                            <span class="font-extrabold text-zinc-950">Rs {{ number_format($this->paymentRowsTotalAmount, 2) }}</span>
+                        </div>
+                        <div class="flex justify-between rounded-2xl border border-amber-100 bg-amber-50/70 p-4 sm:flex-col sm:gap-1">
+                            <span class="font-semibold text-amber-700">{{ __('Cheque Hold') }}</span>
+                            <span class="font-extrabold text-amber-700">Rs {{ number_format($this->checkoutHoldPreview, 2) }}</span>
+                        </div>
+                        <div class="flex justify-between rounded-2xl border border-zinc-100 bg-zinc-50 p-4 sm:flex-col sm:gap-1">
+                            <span class="font-semibold text-zinc-500">{{ __('Remaining Customer Due') }}</span>
+                            <span class="font-extrabold text-rose-600">Rs {{ number_format($this->checkoutDuePreview, 2) }}</span>
+                        </div>
                     </div>
 
                     <flux:textarea wire:model="notes" :label="__('Internal Invoice Notes')" rows="2" />

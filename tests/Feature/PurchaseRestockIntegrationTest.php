@@ -403,3 +403,388 @@ test('party cheque lower than total leaves supplier due with partial status', fu
         ->and($purchase->payment_status)->toBe('partial')
         ->and((float) $supplier->refresh()->due_balance)->toBe(400.0);
 });
+
+test('purchase can be paid with cash saved party cheque manual party cheque and own cheques', function () {
+    $user = User::factory()->create(['role' => 'super_admin', 'is_active' => true]);
+    $supplier = Supplier::query()->create([
+        'name' => 'Mixed Payment Supplier',
+        'opening_balance' => 0,
+        'due_balance' => 0,
+    ]);
+    $customer = Customer::query()->create([
+        'name' => 'Saved Cheque Customer',
+        'opening_balance' => 0,
+        'due_balance' => 0,
+    ]);
+    $product = Product::factory()->create([
+        'name' => 'Bulk Mixed Purchase Stock',
+        'cost_price' => 100000,
+        'selling_price' => 125000,
+        'stock_quantity' => 0,
+    ]);
+    $sale = Sale::query()->create([
+        'customer_id' => $customer->id,
+        'invoice_no' => 'INV-MIXED-100',
+        'date' => today(),
+        'subtotal_amount' => 30000,
+        'discount_amount' => 0,
+        'tax_amount' => 0,
+        'grand_total' => 30000,
+        'paid_amount' => 0,
+        'due_amount' => 0,
+        'payment_status' => 'cheque_pending',
+        'profit' => 0,
+    ]);
+    $savedPartyCheque = $sale->payments()->create([
+        'amount' => 30000,
+        'payment_method' => 'cheque',
+        'date' => today(),
+        'reference' => '76820',
+        'cheque_bank' => 'NDB',
+        'cheque_no' => '76820',
+        'cheque_date' => today()->addDays(2),
+        'cheque_status' => 'pending',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::purchases.create')
+        ->set('invoice_no', 'PUR-MIXED-100')
+        ->set('supplier_id', $supplier->id)
+        ->set('cart', [[
+            'product_id' => $product->id,
+            'name' => $product->name,
+            'sku' => $product->sku,
+            'quantity' => 1,
+            'cost_price' => 100000,
+            'selling_price' => 125000,
+            'subtotal' => 100000,
+        ]])
+        ->set('paymentRows', [
+            [
+                'amount' => 20000,
+                'method' => 'cash',
+                'reference' => 'Cash 20k',
+                'cheque_type' => 'party',
+                'cheque_no' => '',
+                'cheque_bank' => '',
+                'cheque_date' => '',
+                'party_cheque_search' => '',
+                'party_cheque_payment_id' => null,
+            ],
+            [
+                'amount' => 30000,
+                'method' => 'cheque',
+                'reference' => '',
+                'cheque_type' => 'party',
+                'cheque_no' => '',
+                'cheque_bank' => '',
+                'cheque_date' => '',
+                'party_cheque_search' => '76820',
+                'party_cheque_payment_id' => $savedPartyCheque->id,
+            ],
+            [
+                'amount' => 10000,
+                'method' => 'cheque',
+                'reference' => '',
+                'cheque_type' => 'own',
+                'cheque_no' => '765413',
+                'cheque_bank' => 'BOC',
+                'cheque_date' => today()->addDays(4)->toDateString(),
+                'party_cheque_search' => '',
+                'party_cheque_payment_id' => null,
+            ],
+            [
+                'amount' => 30000,
+                'method' => 'cheque',
+                'reference' => '',
+                'cheque_type' => 'party',
+                'cheque_no' => '786546',
+                'cheque_bank' => 'Commercial Bank',
+                'cheque_date' => today()->addDays(3)->toDateString(),
+                'party_cheque_search' => '786546',
+                'party_cheque_payment_id' => null,
+            ],
+            [
+                'amount' => 10000,
+                'method' => 'cheque',
+                'reference' => '',
+                'cheque_type' => 'own',
+                'cheque_no' => 'OWN-10000',
+                'cheque_bank' => 'Peoples Bank',
+                'cheque_date' => today()->addDays(5)->toDateString(),
+                'party_cheque_search' => '',
+                'party_cheque_payment_id' => null,
+            ],
+        ])
+        ->call('savePurchase')
+        ->assertHasNoErrors();
+
+    $purchase = Purchase::query()->where('invoice_no', 'PUR-MIXED-100')->firstOrFail();
+    $payments = $purchase->payments()->orderBy('id')->get();
+
+    expect($purchase->payment_status)->toBe('cheque_pending')
+        ->and((float) $purchase->paid_amount)->toBe(20000.0)
+        ->and((float) $purchase->due_amount)->toBe(0.0)
+        ->and((float) $supplier->refresh()->due_balance)->toBe(0.0)
+        ->and($payments)->toHaveCount(5)
+        ->and($payments[0]->payment_method)->toBe('cash')
+        ->and((float) $payments[0]->amount)->toBe(20000.0)
+        ->and($payments[1]->cheque_type)->toBe('party')
+        ->and($payments[1]->source_payment_id)->toBe($savedPartyCheque->id)
+        ->and($payments[1]->party_customer_id)->toBe($customer->id)
+        ->and($payments[2]->cheque_type)->toBe('own')
+        ->and($payments[2]->cheque_no)->toBe('765413')
+        ->and($payments[3]->cheque_type)->toBe('party')
+        ->and($payments[3]->source_payment_id)->toBeNull()
+        ->and($payments[3]->cheque_no)->toBe('786546')
+        ->and($payments[4]->cheque_type)->toBe('own')
+        ->and($payments[4]->cheque_no)->toBe('OWN-10000');
+});
+
+test('saved customer cheque selection hides manual party cheque fields', function () {
+    $user = User::factory()->create(['role' => 'super_admin', 'is_active' => true]);
+    $customer = Customer::query()->create([
+        'name' => 'Hide Manual Cheque Customer',
+        'opening_balance' => 0,
+        'due_balance' => 0,
+    ]);
+    $sale = Sale::query()->create([
+        'customer_id' => $customer->id,
+        'invoice_no' => 'INV-HIDE-CHEQUE-100',
+        'date' => today(),
+        'subtotal_amount' => 30000,
+        'discount_amount' => 0,
+        'tax_amount' => 0,
+        'grand_total' => 30000,
+        'paid_amount' => 0,
+        'due_amount' => 0,
+        'payment_status' => 'cheque_pending',
+        'profit' => 0,
+    ]);
+    $savedPartyCheque = $sale->payments()->create([
+        'amount' => 30000,
+        'payment_method' => 'cheque',
+        'date' => today(),
+        'reference' => 'SAVED-76820',
+        'cheque_bank' => 'NDB',
+        'cheque_no' => 'SAVED-76820',
+        'cheque_date' => today()->addDays(2),
+        'cheque_status' => 'pending',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::purchases.create')
+        ->set('paymentRows.0.amount', 30000)
+        ->set('paymentRows.0.method', 'cheque')
+        ->set('paymentRows.0.cheque_type', 'party')
+        ->assertSee('Party Cheque No')
+        ->assertSee('Manual party cheque')
+        ->call('selectPaymentRowPartyCheque', 0, $savedPartyCheque->id)
+        ->assertSee('Saved customer cheque selected')
+        ->assertDontSee('Party Cheque No')
+        ->assertDontSee('Manual party cheque')
+        ->call('clearPaymentRowPartyCheque', 0)
+        ->assertSee('Party Cheque No')
+        ->assertSee('Manual party cheque');
+});
+
+test('purchase bill view shows saved and manual cheque details', function () {
+    $user = User::factory()->create(['role' => 'super_admin', 'is_active' => true]);
+    $supplier = Supplier::query()->create([
+        'name' => 'Bill Cheque Supplier',
+        'opening_balance' => 0,
+        'due_balance' => 0,
+    ]);
+    $customer = Customer::query()->create([
+        'name' => 'Bill Cheque Customer',
+        'opening_balance' => 0,
+        'due_balance' => 0,
+    ]);
+    $sale = Sale::query()->create([
+        'customer_id' => $customer->id,
+        'invoice_no' => 'INV-BILL-CHQ-100',
+        'date' => today(),
+        'subtotal_amount' => 30000,
+        'discount_amount' => 0,
+        'tax_amount' => 0,
+        'grand_total' => 30000,
+        'paid_amount' => 0,
+        'due_amount' => 0,
+        'payment_status' => 'cheque_pending',
+        'profit' => 0,
+    ]);
+    $customerCheque = $sale->payments()->create([
+        'amount' => 30000,
+        'payment_method' => 'cheque',
+        'date' => today(),
+        'reference' => 'BILL-SAVED-100',
+        'cheque_bank' => 'NDB',
+        'cheque_no' => 'BILL-SAVED-100',
+        'cheque_date' => today()->addDays(2),
+        'cheque_status' => 'pending',
+    ]);
+    $purchase = Purchase::query()->create([
+        'supplier_id' => $supplier->id,
+        'invoice_no' => 'PUR-BILL-CHQ-100',
+        'date' => today(),
+        'total_amount' => 60000,
+        'discount' => 0,
+        'tax' => 0,
+        'grand_total' => 60000,
+        'paid_amount' => 0,
+        'due_amount' => 0,
+        'payment_status' => 'cheque_pending',
+    ]);
+    $purchase->payments()->create([
+        'amount' => 30000,
+        'payment_method' => 'cheque',
+        'date' => today(),
+        'reference' => 'BILL-SAVED-100',
+        'cheque_bank' => 'NDB',
+        'cheque_no' => 'BILL-SAVED-100',
+        'cheque_date' => today()->addDays(2),
+        'cheque_status' => 'pending',
+        'cheque_type' => 'party',
+        'source_payment_id' => $customerCheque->id,
+        'party_customer_id' => $customer->id,
+    ]);
+    $purchase->payments()->create([
+        'amount' => 30000,
+        'payment_method' => 'cheque',
+        'date' => today(),
+        'reference' => 'MANUAL-BILL-100',
+        'cheque_bank' => 'Commercial Bank',
+        'cheque_no' => 'MANUAL-BILL-100',
+        'cheque_date' => today()->addDays(3),
+        'cheque_status' => 'pending',
+        'cheque_type' => 'party',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::purchases.index')
+        ->call('viewInvoice', $purchase->id)
+        ->assertSee('Cheque No')
+        ->assertSee('BILL-SAVED-100')
+        ->assertSee('Bill Cheque Customer')
+        ->assertSee('INV-BILL-CHQ-100')
+        ->assertSee('MANUAL-BILL-100')
+        ->assertSee('Commercial Bank')
+        ->assertSee('Manual / Not saved');
+});
+
+test('customer ledger shows saved party cheque used for supplier purchase', function () {
+    $user = User::factory()->create(['role' => 'super_admin', 'is_active' => true]);
+    $supplier = Supplier::query()->create([
+        'name' => 'Ledger Supplier',
+        'opening_balance' => 0,
+        'due_balance' => 0,
+    ]);
+    $customer = Customer::query()->create([
+        'name' => 'Ledger Party Customer',
+        'opening_balance' => 0,
+        'due_balance' => 0,
+    ]);
+    $sale = Sale::query()->create([
+        'customer_id' => $customer->id,
+        'invoice_no' => 'INV-LEDGER-CHQ-100',
+        'date' => today(),
+        'subtotal_amount' => 30000,
+        'discount_amount' => 0,
+        'tax_amount' => 0,
+        'grand_total' => 30000,
+        'paid_amount' => 0,
+        'due_amount' => 0,
+        'payment_status' => 'cheque_pending',
+        'profit' => 0,
+    ]);
+    $customerCheque = $sale->payments()->create([
+        'amount' => 30000,
+        'payment_method' => 'cheque',
+        'date' => today(),
+        'reference' => 'LEDGER-CHQ-100',
+        'cheque_bank' => 'NDB',
+        'cheque_no' => 'LEDGER-CHQ-100',
+        'cheque_date' => today()->addDays(2),
+        'cheque_status' => 'pending',
+    ]);
+    $purchase = Purchase::query()->create([
+        'supplier_id' => $supplier->id,
+        'invoice_no' => 'PUR-LEDGER-CHQ-100',
+        'date' => today(),
+        'total_amount' => 30000,
+        'discount' => 0,
+        'tax' => 0,
+        'grand_total' => 30000,
+        'paid_amount' => 0,
+        'due_amount' => 0,
+        'payment_status' => 'cheque_pending',
+    ]);
+    $purchase->payments()->create([
+        'amount' => 30000,
+        'payment_method' => 'cheque',
+        'date' => today(),
+        'reference' => 'LEDGER-CHQ-100',
+        'cheque_bank' => 'NDB',
+        'cheque_no' => 'LEDGER-CHQ-100',
+        'cheque_date' => today()->addDays(2),
+        'cheque_status' => 'pending',
+        'cheque_type' => 'party',
+        'source_payment_id' => $customerCheque->id,
+        'party_customer_id' => $customer->id,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::parties.customers')
+        ->call('viewLedger', $customer->id)
+        ->assertSee('Customer cheque used for supplier purchase')
+        ->assertSee('LEDGER-CHQ-100')
+        ->assertSee('PUR-LEDGER-CHQ-100')
+        ->assertSee('Ledger Supplier');
+});
+
+test('purchase index shows pending cheque hold amounts', function () {
+    $user = User::factory()->create(['role' => 'super_admin', 'is_active' => true]);
+    $supplier = Supplier::query()->create([
+        'name' => 'Hold Amount Supplier',
+        'opening_balance' => 0,
+        'due_balance' => 0,
+    ]);
+    $purchase = Purchase::query()->create([
+        'supplier_id' => $supplier->id,
+        'invoice_no' => 'PUR-HOLD-AMOUNT-100',
+        'date' => today(),
+        'total_amount' => 133000,
+        'discount' => 0,
+        'tax' => 0,
+        'grand_total' => 133000,
+        'paid_amount' => 15000,
+        'due_amount' => 0,
+        'payment_status' => 'cheque_pending',
+    ]);
+    $purchase->payments()->create([
+        'amount' => 108000,
+        'payment_method' => 'cheque',
+        'date' => today(),
+        'reference' => 'HOLD-108000',
+        'cheque_no' => 'HOLD-108000',
+        'cheque_date' => today()->addDays(3),
+        'cheque_status' => 'pending',
+        'cheque_type' => 'party',
+    ]);
+    $purchase->payments()->create([
+        'amount' => 10000,
+        'payment_method' => 'cheque',
+        'date' => today(),
+        'reference' => 'PASSED-10000',
+        'cheque_no' => 'PASSED-10000',
+        'cheque_date' => today()->subDay(),
+        'cheque_status' => 'passed',
+        'cheque_type' => 'own',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::purchases.index')
+        ->assertSee('Cheque Hold Amount')
+        ->assertSee('Rs 108,000.00')
+        ->assertSee('Hold Amount');
+});

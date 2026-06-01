@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 #[Fillable(['sale_id', 'customer_id', 'invoice_no', 'date', 'return_type', 'refund_amount', 'adjusted_amount', 'notes'])]
 class SaleReturn extends Model
@@ -34,5 +35,10 @@ class SaleReturn extends Model
     public function items(): HasMany
     {
         return $this->hasMany(SaleReturnItem::class, 'return_id');
+    }
+
+    public function payments(): MorphMany
+    {
+        return $this->morphMany(Payment::class, 'paymentable');
     }
 }

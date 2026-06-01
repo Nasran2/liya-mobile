@@ -17,9 +17,9 @@ class ChequePaymentService
 
     public function pass(Payment $payment): Payment
     {
-        $shouldNotify = false;
+        $notifyPaymentIds = [];
 
-        $passedPayment = DB::transaction(function () use ($payment, &$shouldNotify) {
+        $passedPayment = DB::transaction(function () use ($payment, &$notifyPaymentIds) {
             $payment->refresh();
 
             if ($payment->payment_method !== 'cheque' || $payment->cheque_status !== 'pending') {
@@ -52,6 +52,7 @@ class ChequePaymentService
                     'cheque_status' => 'passed',
                     'cheque_processed_at' => now(),
                 ]);
+                $notifyPaymentIds[] = $payment->sourcePayment->id;
 
                 if ($sourceSale instanceof Sale) {
                     $this->syncSaleStatus($sourceSale);
@@ -76,14 +77,18 @@ class ChequePaymentService
                 $this->syncPurchaseStatus($purchase);
             }
 
-            $shouldNotify = true;
+            $notifyPaymentIds[] = $payment->id;
 
             return $payment->refresh();
         });
 
-        if ($shouldNotify) {
-            $this->smsNotificationService->notifyChequePassed($passedPayment);
-        }
+        Payment::query()
+            ->whereIn('id', array_unique($notifyPaymentIds))
+            ->with('paymentable')
+            ->get()
+            ->each(function (Payment $payment): void {
+                $this->smsNotificationService->notifyChequePassed($payment);
+            });
 
         return $passedPayment;
     }
@@ -222,7 +227,7 @@ class ChequePaymentService
                         ->whereDate('cheque_date', '<=', $today->copy()->addDays(2)->toDateString());
                 });
             })
-            ->with(['paymentable', 'sourcePayment.paymentable.customer', 'partyCustomer'])
+            ->with(['paymentable', 'sourcePayment.paymentable', 'partyCustomer'])
             ->orderBy('cheque_date')
             ->orderBy('id')
             ->get();

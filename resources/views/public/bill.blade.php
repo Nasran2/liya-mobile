@@ -31,6 +31,13 @@
 </head>
 <body class="min-h-screen bg-slate-100 text-slate-900 antialiased print:bg-white">
     <main class="mx-auto min-h-screen w-full max-w-5xl px-4 py-6 sm:px-6 sm:py-10 print:max-w-none print:p-0">
+        <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between print:hidden">
+            <p class="text-sm font-semibold text-slate-500">{{ __('No login required. View this invoice or save it as a PDF.') }}</p>
+            <button type="button" onclick="window.print()" class="inline-flex items-center justify-center rounded-xl bg-violet-600 px-4 py-2 text-sm font-black text-white shadow-sm transition hover:bg-violet-500 active:scale-95">
+                {{ __('Print / Save PDF') }}
+            </button>
+        </div>
+
         <section class="relative overflow-hidden rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-8 print:rounded-none print:p-8 print:shadow-none print:ring-0">
             <div class="absolute left-0 top-0 h-1.5 w-full bg-gradient-to-r from-violet-600 via-indigo-500 to-cyan-500"></div>
 
