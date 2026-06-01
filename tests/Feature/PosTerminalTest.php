@@ -161,6 +161,80 @@ test('cheque checkout creates a pending hold payment', function () {
         ->and($payment->cheque_no)->toBe('CHQ-100');
 });
 
+test('customer checkout can split cash with multiple cheque holds', function () {
+    $user = User::factory()->create([
+        'role' => 'super_admin',
+        'is_active' => true,
+    ]);
+    $customer = Customer::query()->create([
+        'name' => 'Split Payment Customer',
+        'phone' => '0770000099',
+        'opening_balance' => 0,
+        'due_balance' => 0,
+    ]);
+    $product = Product::factory()->create([
+        'name' => 'Split Sale Product',
+        'cost_price' => 60000,
+        'selling_price' => 100000,
+        'stock_quantity' => 5,
+        'is_active' => true,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::pos.index')
+        ->call('addToCart', $product->id)
+        ->set('customer_id', $customer->id)
+        ->set('paymentRows', [
+            [
+                'amount' => 30000,
+                'method' => 'cash',
+                'reference' => 'CASH-COUNTER',
+                'cheque_bank' => '',
+                'cheque_no' => '',
+                'cheque_date' => '',
+            ],
+            [
+                'amount' => 30000,
+                'method' => 'cheque',
+                'reference' => '',
+                'cheque_bank' => 'BOC',
+                'cheque_no' => '4321',
+                'cheque_date' => today()->addDays(2)->toDateString(),
+            ],
+            [
+                'amount' => 30000,
+                'method' => 'cheque',
+                'reference' => '',
+                'cheque_bank' => 'Peoples Bank',
+                'cheque_no' => '1232',
+                'cheque_date' => today()->addDays(3)->toDateString(),
+            ],
+            [
+                'amount' => 10000,
+                'method' => 'cheque',
+                'reference' => '',
+                'cheque_bank' => 'Commercial Bank',
+                'cheque_no' => '3244',
+                'cheque_date' => today()->addDays(4)->toDateString(),
+            ],
+        ])
+        ->call('submitCheckout')
+        ->assertHasNoErrors();
+
+    $sale = Sale::query()->with('payments')->firstOrFail();
+
+    expect($sale->payment_status)->toBe('cheque_pending')
+        ->and((float) $sale->grand_total)->toBe(100000.0)
+        ->and((float) $sale->paid_amount)->toBe(30000.0)
+        ->and((float) $sale->due_amount)->toBe(0.0)
+        ->and((float) $customer->refresh()->due_balance)->toBe(0.0)
+        ->and($sale->payments)->toHaveCount(4)
+        ->and((float) $sale->payments->where('payment_method', 'cash')->sum('amount'))->toBe(30000.0)
+        ->and($sale->payments->where('payment_method', 'cheque')->pluck('cheque_no')->sort()->values()->all())->toBe(['1232', '3244', '4321'])
+        ->and($sale->payments->where('payment_method', 'cheque')->pluck('cheque_status')->unique()->values()->all())->toBe(['pending'])
+        ->and((int) $product->refresh()->stock_quantity)->toBe(4);
+});
+
 test('cashier can checkout with fixed and percentage discount types', function () {
     $user = User::factory()->create([
         'role' => 'super_admin',

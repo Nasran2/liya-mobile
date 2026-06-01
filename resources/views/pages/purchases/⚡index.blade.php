@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Payment;
 use App\Models\Purchase;
 use App\Models\Supplier;
 use Flux\Flux;
@@ -45,7 +46,13 @@ new #[Title('Wholesale Purchase Logs')] class extends Component
     #[Computed]
     public function filteredPurchasesQuery()
     {
-        $query = Purchase::query()->with(['supplier', 'items.product']);
+        $query = Purchase::query()
+            ->with(['supplier', 'items.product'])
+            ->withSum([
+                'payments as pending_cheque_hold_amount' => fn ($query) => $query
+                    ->where('payment_method', 'cheque')
+                    ->where('cheque_status', 'pending'),
+            ], 'amount');
 
         if ($this->search) {
             $query->where('invoice_no', 'like', '%' . $this->search . '%');
@@ -72,17 +79,24 @@ new #[Title('Wholesale Purchase Logs')] class extends Component
     }
 
     /**
-     * @return array{count:int,total:float,due:float}
+     * @return array{count:int,total:float,due:float,hold:float}
      */
     #[Computed]
     public function purchaseSummary(): array
     {
         $query = $this->filteredPurchasesQuery();
+        $purchaseIds = (clone $query)->pluck('id');
 
         return [
             'count' => (clone $query)->count(),
             'total' => (float) (clone $query)->sum('grand_total'),
             'due' => (float) (clone $query)->sum('due_amount'),
+            'hold' => (float) Payment::query()
+                ->where('paymentable_type', Purchase::class)
+                ->whereIn('paymentable_id', $purchaseIds)
+                ->where('payment_method', 'cheque')
+                ->where('cheque_status', 'pending')
+                ->sum('amount'),
         ];
     }
 
@@ -92,7 +106,7 @@ new #[Title('Wholesale Purchase Logs')] class extends Component
         if (! $this->viewingPurchaseId) return null;
 
         return Purchase::query()
-            ->with(['supplier', 'items.product', 'payments'])
+            ->with(['supplier', 'items.product', 'payments.sourcePayment.paymentable.customer', 'payments.partyCustomer'])
             ->findOrFail($this->viewingPurchaseId);
     }
 }; ?>
@@ -109,7 +123,7 @@ new #[Title('Wholesale Purchase Logs')] class extends Component
         </flux:button>
     </div>
 
-    <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div class="app-card p-4">
             <div class="flex items-center justify-between">
                 <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-violet-50 text-violet-600">
@@ -129,6 +143,16 @@ new #[Title('Wholesale Purchase Logs')] class extends Component
             </div>
             <p class="mt-4 text-xs font-semibold uppercase tracking-wider text-zinc-400">{{ __('Grand Total Value') }}</p>
             <p class="mt-1 font-display text-xl font-bold text-zinc-950">Rs {{ number_format($this->purchaseSummary['total'], 2) }}</p>
+        </div>
+        <div class="app-card p-4">
+            <div class="flex items-center justify-between">
+                <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
+                    <flux:icon.clock class="size-5" />
+                </div>
+                <flux:badge size="sm" color="amber">{{ __('Hold') }}</flux:badge>
+            </div>
+            <p class="mt-4 text-xs font-semibold uppercase tracking-wider text-zinc-400">{{ __('Cheque Hold Amount') }}</p>
+            <p class="mt-1 font-display text-xl font-bold text-zinc-950">Rs {{ number_format($this->purchaseSummary['hold'], 2) }}</p>
         </div>
         <div class="app-card p-4">
             <div class="flex items-center justify-between">
@@ -199,6 +223,13 @@ new #[Title('Wholesale Purchase Logs')] class extends Component
                     <div class="flex flex-col sm:items-end">
                         <span class="text-[10px] text-zinc-400 uppercase font-semibold tracking-wider">Grand Total</span>
                         <span class="text-sm font-bold text-zinc-950">Rs {{ number_format($p->grand_total, 2) }}</span>
+                    </div>
+
+                    <div class="flex flex-col sm:items-end">
+                        <span class="text-[10px] text-zinc-400 uppercase font-semibold tracking-wider">Hold Amount</span>
+                        <span class="text-sm font-semibold text-amber-600">
+                            Rs {{ number_format((float) ($p->pending_cheque_hold_amount ?? 0), 2) }}
+                        </span>
                     </div>
 
                     <div class="flex flex-col sm:items-end">
@@ -321,12 +352,39 @@ new #[Title('Wholesale Purchase Logs')] class extends Component
                         <h4 class="text-xs font-semibold text-zinc-400 uppercase tracking-wider">{{ __('Outward Payments Remitted') }}</h4>
                         
                         @forelse ($this->selectedPurchase->payments as $pm)
-                            <div class="flex items-center justify-between rounded-xl bg-zinc-50 border border-zinc-100 p-3 text-xs">
-                                <div>
-                                    <span class="font-bold text-zinc-800 capitalize">{{ $pm->payment_method }} Account</span>
-                                    <span class="text-[10px] text-zinc-400 mt-0.5 block">{{ $pm->date->format('Y-m-d') }}</span>
+                            <div class="rounded-xl bg-zinc-50 border border-zinc-100 p-3 text-xs">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <span class="font-bold text-zinc-800 capitalize">
+                                            {{ $pm->payment_method === 'cheque' ? str($pm->cheque_type ?: 'cheque')->headline().' Cheque' : str($pm->payment_method)->headline().' Account' }}
+                                        </span>
+                                        <span class="text-[10px] text-zinc-400 mt-0.5 block">{{ $pm->date->format('Y-m-d') }}</span>
+                                    </div>
+                                    <span class="shrink-0 font-bold text-emerald-600">Rs {{ number_format($pm->amount, 2) }}</span>
                                 </div>
-                                <span class="font-bold text-emerald-600">Rs {{ number_format($pm->amount, 2) }}</span>
+
+                                @if ($pm->payment_method === 'cheque')
+                                    @php($sourceSale = $pm->sourcePayment?->paymentable)
+                                    <div class="mt-3 grid gap-2 rounded-lg bg-white p-3 text-[11px] font-semibold text-zinc-500 sm:grid-cols-2">
+                                        <span>{{ __('Cheque No') }}: <strong class="text-zinc-800">{{ $pm->cheque_no ?: $pm->reference ?: '-' }}</strong></span>
+                                        <span>{{ __('Status') }}: <strong class="text-zinc-800">{{ str($pm->cheque_status ?: 'pending')->headline() }}</strong></span>
+                                        <span>{{ __('Bank') }}: <strong class="text-zinc-800">{{ $pm->cheque_bank ?: '-' }}</strong></span>
+                                        <span>{{ __('Cheque Date') }}: <strong class="text-zinc-800">{{ $pm->cheque_date?->format('Y-m-d') ?? '-' }}</strong></span>
+                                        @if ($pm->cheque_type === 'party')
+                                            <span class="sm:col-span-2">
+                                                {{ __('Customer') }}:
+                                                <strong class="text-zinc-800">
+                                                    {{ $pm->partyCustomer?->name ?? $sourceSale?->customer?->name ?? __('Manual / Not saved') }}
+                                                </strong>
+                                                @if ($sourceSale)
+                                                    · {{ __('Bill') }} {{ $sourceSale->invoice_no }}
+                                                @endif
+                                            </span>
+                                        @endif
+                                    </div>
+                                @elseif ($pm->reference)
+                                    <p class="mt-2 text-[11px] text-zinc-400">{{ __('Reference') }}: {{ $pm->reference }}</p>
+                                @endif
                             </div>
                         @empty
                             <div class="py-4 text-center text-[10px] text-zinc-400">

@@ -2,6 +2,7 @@
 
 use App\Models\Customer;
 use App\Models\Payment;
+use App\Models\Purchase;
 use App\Models\Sale;
 use App\Models\Setting;
 use App\Services\ActivityLogger;
@@ -377,6 +378,42 @@ new #[Title('Manage Customers')] class extends Component
                 'raw_date' => $pm->created_at,
             ]);
 
+        $supplierPartyCheques = Payment::query()
+            ->where('paymentable_type', Purchase::class)
+            ->where('payment_method', 'cheque')
+            ->where('cheque_type', 'party')
+            ->where('party_customer_id', $this->selectedCustomerId)
+            ->with(['paymentable.supplier', 'sourcePayment.paymentable'])
+            ->get()
+            ->map(function ($pm) {
+                $purchase = $pm->paymentable;
+                $sourceSale = $pm->sourcePayment?->paymentable;
+
+                return [
+                    'type' => 'payment',
+                    'badge' => __('Party Cheque'),
+                    'id' => 'supplier-party-' . $pm->id,
+                    'date' => $pm->date,
+                    'bill_date' => $purchase?->date,
+                    'paid_date' => $pm->date,
+                    'bill_no' => $sourceSale?->invoice_no ?? __('Customer Cheque'),
+                    'ref' => $pm->cheque_no ?: $pm->reference ?: 'CHQ-' . $pm->id,
+                    'description' => __('Customer cheque used for supplier purchase') . ' ' . ($purchase?->invoice_no ?? ''),
+                    'payment_method' => __('party cheque'),
+                    'payment_status' => $pm->cheque_status ?: __('pending'),
+                    'invoice_status' => $purchase?->payment_status,
+                    'invoice_due' => (float) ($purchase?->due_amount ?? 0),
+                    'cheque_no' => $pm->cheque_no,
+                    'cheque_bank' => $pm->cheque_bank,
+                    'cheque_date' => $pm->cheque_date,
+                    'supplier_name' => $purchase?->supplier?->name,
+                    'purchase_invoice_no' => $purchase?->invoice_no,
+                    'debit' => 0.00,
+                    'credit' => (float) $pm->amount,
+                    'raw_date' => $pm->created_at,
+                ];
+            });
+
         $returns = \App\Models\SaleReturn::query()
             ->where('customer_id', $this->selectedCustomerId)
             ->get()
@@ -401,6 +438,7 @@ new #[Title('Manage Customers')] class extends Component
             ->concat($salesMapped)
             ->concat($salePayments)
             ->concat($payments)
+            ->concat($supplierPartyCheques)
             ->concat($returns)
             ->sortBy('raw_date')
             ->values();
@@ -1000,6 +1038,22 @@ new #[Title('Manage Customers')] class extends Component
                                                         · {{ __('Due') }}: Rs {{ number_format($invoiceDue, 2) }}
                                                     @endif
                                                 </p>
+                                            @endif
+                                            @if (! empty($row['cheque_no']) || ! empty($row['purchase_invoice_no']))
+                                                <div class="mt-2 rounded-xl bg-zinc-50 p-3 text-[11px] font-semibold text-zinc-500">
+                                                    @if (! empty($row['cheque_no']))
+                                                        <p>{{ __('Cheque No') }}: <span class="text-zinc-800">{{ $row['cheque_no'] }}</span></p>
+                                                    @endif
+                                                    @if (! empty($row['cheque_bank']))
+                                                        <p>{{ __('Bank') }}: <span class="text-zinc-800">{{ $row['cheque_bank'] }}</span></p>
+                                                    @endif
+                                                    @if (! empty($row['cheque_date']))
+                                                        <p>{{ __('Cheque Date') }}: <span class="text-zinc-800">{{ $row['cheque_date']->format('Y-m-d') }}</span></p>
+                                                    @endif
+                                                    @if (! empty($row['purchase_invoice_no']))
+                                                        <p>{{ __('Supplier Bill') }}: <span class="text-zinc-800">{{ $row['purchase_invoice_no'] }}</span> @if (! empty($row['supplier_name'])) · {{ $row['supplier_name'] }} @endif</p>
+                                                    @endif
+                                                </div>
                                             @endif
                                         </div>
                                         <div class="shrink-0 text-left sm:text-right">
