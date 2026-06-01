@@ -25,6 +25,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('products/{product}', 'pages::products.show')->name('products.show');
 
     Route::livewire('pos/{sale?}', 'pages::pos.index')->name('pos.index');
+    Route::livewire('pos-returns', 'pages::pos.returns')->name('pos.returns');
     Route::livewire('parties/customers', 'pages::parties.customers')->name('parties.customers');
     Route::livewire('parties/suppliers', 'pages::parties.suppliers')->name('parties.suppliers');
     Route::livewire('expenses', 'pages::expenses.index')->name('expenses.index');

@@ -1,5 +1,5 @@
 @php
-    $isPosTerminal = request()->routeIs('pos.*');
+    $isPosTerminal = request()->routeIs('pos.index');
 @endphp
 
 <!DOCTYPE html>
@@ -161,6 +161,10 @@
                                     <a href="{{ route('sales.index') }}" wire:navigate class="flex items-center gap-2.5 py-1.5 text-sm font-medium text-zinc-500 hover:text-violet-600 dark:text-zinc-400 dark:hover:text-violet-400">
                                         <flux:icon.document-text class="size-4 text-zinc-400" />
                                         <span>Sales List</span>
+                                    </a>
+                                    <a href="{{ route('pos.returns') }}" wire:navigate class="flex items-center gap-2.5 py-1.5 text-sm font-medium {{ request()->routeIs('pos.returns') ? 'text-violet-600 dark:text-violet-400' : 'text-zinc-500 hover:text-violet-600 dark:text-zinc-400 dark:hover:text-violet-400' }}">
+                                        <flux:icon.arrow-uturn-left class="size-4 text-zinc-400" />
+                                        <span>Returns</span>
                                     </a>
                                     <a href="{{ route('pos.index') }}" wire:navigate class="flex items-center gap-2.5 py-1.5 text-sm font-medium text-zinc-500 hover:text-violet-600 dark:text-zinc-400 dark:hover:text-violet-400">
                                         <flux:icon.pause class="size-4 text-zinc-400" />
@@ -806,6 +810,7 @@
                                 <div x-show="expandedMenu === 'pos'" x-transition class="ml-12 space-y-1 border-l border-zinc-100 pl-3 dark:border-zinc-800">
                                     <a href="{{ route('pos.index') }}" wire:navigate @click="mobileMenuOpen = false" class="flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm font-medium text-zinc-500 hover:text-violet-600 dark:text-zinc-400 dark:hover:text-violet-400"><flux:icon.computer-desktop class="size-4 text-zinc-400" /><span>{{ __('POS Screen') }}</span></a>
                                     <a href="{{ route('sales.index') }}" wire:navigate @click="mobileMenuOpen = false" class="flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm font-medium text-zinc-500 hover:text-violet-600 dark:text-zinc-400 dark:hover:text-violet-400"><flux:icon.document-text class="size-4 text-zinc-400" /><span>{{ __('Sales List') }}</span></a>
+                                    <a href="{{ route('pos.returns') }}" wire:navigate @click="mobileMenuOpen = false" class="flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm font-medium {{ request()->routeIs('pos.returns') ? 'text-violet-600 dark:text-violet-400' : 'text-zinc-500 hover:text-violet-600 dark:text-zinc-400 dark:hover:text-violet-400' }}"><flux:icon.arrow-uturn-left class="size-4 text-zinc-400" /><span>{{ __('Returns') }}</span></a>
                                     <a href="{{ route('pos.index') }}" wire:navigate @click="mobileMenuOpen = false" class="flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm font-medium text-zinc-500 hover:text-violet-600 dark:text-zinc-400 dark:hover:text-violet-400"><flux:icon.pause class="size-4 text-zinc-400" /><span>{{ __('Hold Orders') }}</span></a>
                                 </div>
                             </div>
