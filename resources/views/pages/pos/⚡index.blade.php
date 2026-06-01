@@ -26,7 +26,7 @@ new #[Title('POS Terminal')] class extends Component
     public array $cart = [];
 
     // Checkout configurations
-    public int $customer_id = 1; // Default to Walk-in Customer
+    public int|string|null $customer_id = null;
     public $discount = 0.00;
     public string $discount_type = 'fixed'; // fixed, percentage
     public $tax = 0.00;
@@ -142,12 +142,6 @@ new #[Title('POS Terminal')] class extends Component
                 }
             }
             $this->paid_amount = (float) $sale->paid_amount;
-        } else {
-            // Get default customer id from settings or find first
-            $defaultCust = Customer::query()->where('name', 'Walk-in Customer')->first();
-            if ($defaultCust) {
-                $this->customer_id = $defaultCust->id;
-            }
         }
 
         Cache::remember(
@@ -428,7 +422,7 @@ new #[Title('POS Terminal')] class extends Component
     public function resumeHeldOrder(int $holdId): void
     {
         $hold = HoldOrder::query()->findOrFail($holdId);
-        $this->customer_id = $hold->customer_id ?? 1;
+        $this->customer_id = $hold->customer_id;
         $this->cart = $hold->items_json;
         $this->discount = (float) $hold->discount;
         $this->tax = (float) $hold->tax;
@@ -709,10 +703,7 @@ new #[Title('POS Terminal')] class extends Component
     {
         $this->reset('cart', 'discount', 'discount_type', 'tax', 'paid_amount', 'payment_method', 'payment_reference', 'cheque_bank', 'cheque_no', 'cheque_date', 'notes', 'customerSearch', 'paymentRows');
         $this->paymentRows = [$this->blankPaymentRow()];
-        $defaultCust = Customer::query()->where('name', 'Walk-in Customer')->first();
-        if ($defaultCust) {
-            $this->customer_id = $defaultCust->id;
-        }
+        $this->customer_id = null;
     }
 
     public function closeSuccess(): void
@@ -735,12 +726,11 @@ new #[Title('POS Terminal')] class extends Component
                         ->orWhere('email', 'like', '%' . $search . '%');
                 });
             })
-            ->orderByRaw("name = 'Walk-in Customer' DESC")
             ->orderBy('name')
             ->limit(25)
             ->get();
 
-        if ($this->customer_id) {
+        if (filled($this->customer_id)) {
             $selectedCustomer = Customer::query()->find($this->customer_id);
 
             if ($selectedCustomer && ! $customers->contains('id', $selectedCustomer->id)) {
@@ -754,6 +744,10 @@ new #[Title('POS Terminal')] class extends Component
     #[Computed]
     public function selectedCustomer(): ?Customer
     {
+        if (blank($this->customer_id)) {
+            return null;
+        }
+
         return Customer::query()->find($this->customer_id);
     }
 
@@ -1712,6 +1706,7 @@ new #[Title('POS Terminal')] class extends Component
 
                     <div class="mt-3">
                         <flux:select wire:model.live="customer_id" required>
+                            <option value="" disabled>{{ __('-- Select the customer --') }}</option>
                             @foreach ($this->customers as $cust)
                                 <option value="{{ $cust->id }}">{{ $cust->name }} ({{ $cust->phone ?: 'Walk-in' }})</option>
                             @endforeach

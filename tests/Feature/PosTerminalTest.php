@@ -122,6 +122,23 @@ test('cashier can add a customer from the pos checkout', function () {
         ->and((float) $customer->due_balance)->toBe(0.0);
 });
 
+test('checkout customer select starts empty and requires a real selection', function () {
+    $user = User::factory()->create([
+        'role' => 'super_admin',
+        'is_active' => true,
+    ]);
+    $this->seed(SampleProductsSeeder::class);
+    $product = Product::query()->where('sku', 'CASE-AIRPODS-PRO')->firstOrFail();
+
+    Livewire::actingAs($user)
+        ->test('pages::pos.index')
+        ->assertSet('customer_id', null)
+        ->assertSee('-- Select the customer --')
+        ->call('addToCart', $product->id)
+        ->call('submitCheckout')
+        ->assertHasErrors(['customer_id']);
+});
+
 test('cheque checkout creates a pending hold payment', function () {
     $user = User::factory()->create([
         'role' => 'super_admin',
