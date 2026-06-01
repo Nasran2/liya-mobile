@@ -89,9 +89,9 @@
 
             <div class="max-w-[78mm] text-right">
                 <div class="flex items-start justify-end gap-2.5">
-                    <div class="flex h-[16mm] w-[20mm] shrink-0 items-center justify-center overflow-hidden rounded-md border border-slate-100 bg-white">
+                    <div class="shrink-0 overflow-hidden rounded-md border border-slate-100 bg-white" style="display: flex; width: 18mm !important; height: 14mm !important; align-items: center; justify-content: center;">
                         @if ($businessLogoUrl)
-                            <img src="{{ $businessLogoUrl }}" alt="{{ $businessName }}" class="h-full w-full object-contain">
+                            <img src="{{ $businessLogoUrl }}" alt="{{ $businessName }}" style="display: block; width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; object-fit: contain !important;">
                         @else
                             <span class="inline-flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-violet-600 to-indigo-600 text-white text-xs font-bold shadow-sm shadow-indigo-100">
                                 I

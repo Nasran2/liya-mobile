@@ -60,9 +60,9 @@
 
                 <div class="max-w-md sm:text-right">
                     <div class="flex items-start gap-3 sm:justify-end">
-                        <div class="flex h-14 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-100 bg-white">
+                        <div class="shrink-0 overflow-hidden rounded-lg border border-slate-100 bg-white" style="display: flex; width: 64px !important; height: 52px !important; align-items: center; justify-content: center;">
                             @if ($businessLogoUrl)
-                                <img src="{{ $businessLogoUrl }}" alt="{{ $businessName }}" class="h-full w-full object-contain">
+                                <img src="{{ $businessLogoUrl }}" alt="{{ $businessName }}" style="display: block; width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; object-fit: contain !important;">
                             @else
                                 <span class="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 text-sm font-black text-white shadow-sm">
                                     I

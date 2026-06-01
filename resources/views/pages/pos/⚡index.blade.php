@@ -1988,8 +1988,8 @@ Due: Rs {{ number_format($this->completedSale->due_amount, 2) }}
 
                 <div class="text-center mb-3">
                     @if ($businessLogoUrl)
-                        <div class="mx-auto mb-1 flex h-[14mm] w-[18mm] items-center justify-center overflow-hidden bg-white">
-                            <img src="{{ $businessLogoUrl }}" alt="{{ Setting::get('business_name') }}" class="h-full w-full object-contain">
+                        <div class="mx-auto mb-1 overflow-hidden bg-white" style="display: flex; width: 16mm !important; height: 12mm !important; align-items: center; justify-content: center;">
+                            <img src="{{ $businessLogoUrl }}" alt="{{ Setting::get('business_name') }}" style="display: block; width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; object-fit: contain !important;">
                         </div>
                     @endif
                     <h2 class="font-bold text-sm tracking-wide">{{ Setting::get('business_name') }}</h2>
