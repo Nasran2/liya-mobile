@@ -84,7 +84,7 @@ class ChequePaymentService
 
         Payment::query()
             ->whereIn('id', array_unique($notifyPaymentIds))
-            ->with('paymentable.customer')
+            ->with('paymentable')
             ->get()
             ->each(function (Payment $payment): void {
                 $this->smsNotificationService->notifyChequePassed($payment);
@@ -227,7 +227,7 @@ class ChequePaymentService
                         ->whereDate('cheque_date', '<=', $today->copy()->addDays(2)->toDateString());
                 });
             })
-            ->with(['paymentable', 'sourcePayment.paymentable.customer', 'partyCustomer'])
+            ->with(['paymentable', 'sourcePayment.paymentable', 'partyCustomer'])
             ->orderBy('cheque_date')
             ->orderBy('id')
             ->get();

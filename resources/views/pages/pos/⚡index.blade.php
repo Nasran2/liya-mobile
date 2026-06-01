@@ -142,6 +142,11 @@ new #[Title('POS Terminal')] class extends Component
                 }
             }
             $this->paid_amount = (float) $sale->paid_amount;
+        } else {
+            $defaultCust = Customer::query()->where('name', 'Walk-in Customer')->first();
+            if ($defaultCust) {
+                $this->customer_id = $defaultCust->id;
+            }
         }
 
         Cache::remember(
@@ -703,7 +708,8 @@ new #[Title('POS Terminal')] class extends Component
     {
         $this->reset('cart', 'discount', 'discount_type', 'tax', 'paid_amount', 'payment_method', 'payment_reference', 'cheque_bank', 'cheque_no', 'cheque_date', 'notes', 'customerSearch', 'paymentRows');
         $this->paymentRows = [$this->blankPaymentRow()];
-        $this->customer_id = '';
+        $defaultCust = Customer::query()->where('name', 'Walk-in Customer')->first();
+        $this->customer_id = $defaultCust ? $defaultCust->id : '';
     }
 
     public function closeSuccess(): void
