@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Customer;
+use App\Models\Product;
 use App\Models\Sale;
 use App\Models\Setting;
 use App\Services\ActivityLogger;
@@ -8,6 +9,7 @@ use App\Services\SaleReturnService;
 use App\Services\SmsNotificationService;
 use App\Services\TextItSmsService;
 use Flux\Flux;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
@@ -156,40 +158,72 @@ new #[Title('Sales Receipts')] class extends Component
 
     public function deleteSale(): void
     {
-        $sale = Sale::query()->with(['items', 'returns.items'])->findOrFail($this->viewingSaleId);
+        $invoiceNo = '';
 
-        $itemQuantities = [];
-        foreach ($sale->items as $item) {
-            $itemQuantities[$item->product_id] = $item->quantity;
-        }
+        DB::transaction(function () use (&$invoiceNo): void {
+            $sale = Sale::query()
+                ->with(['customer', 'items', 'payments', 'returns.items', 'returns.payments'])
+                ->lockForUpdate()
+                ->findOrFail($this->viewingSaleId);
 
-        foreach ($sale->returns as $ret) {
-            foreach ($ret->items as $retItem) {
-                if (isset($itemQuantities[$retItem->product_id])) {
-                    $itemQuantities[$retItem->product_id] -= $retItem->quantity;
+            $invoiceNo = $sale->invoice_no;
+            $stockAdjustments = [];
+
+            foreach ($sale->items as $item) {
+                if (! $item->product_id) {
+                    continue;
+                }
+
+                $stockAdjustments[$item->product_id] = ($stockAdjustments[$item->product_id] ?? 0) + (int) $item->quantity;
+            }
+
+            foreach ($sale->returns as $return) {
+                foreach ($return->items as $returnItem) {
+                    if (! $returnItem->product_id) {
+                        continue;
+                    }
+
+                    $returnQuantity = (int) $returnItem->quantity;
+                    $stockAdjustments[$returnItem->product_id] ??= 0;
+
+                    if ($return->return_type === 'exchange') {
+                        $stockAdjustments[$returnItem->product_id] += $returnQuantity;
+                    } else {
+                        $stockAdjustments[$returnItem->product_id] -= $returnQuantity;
+                    }
                 }
             }
-        }
 
-        foreach ($itemQuantities as $productId => $qty) {
-            if ($qty > 0) {
-                $product = Product::query()->find($productId);
-                if ($product) {
-                    $product->increment('stock_quantity', $qty);
+            foreach ($stockAdjustments as $productId => $quantity) {
+                if ($quantity === 0) {
+                    continue;
                 }
+
+                Product::query()
+                    ->whereKey($productId)
+                    ->lockForUpdate()
+                    ->increment('stock_quantity', $quantity);
             }
-        }
 
-        $sale->payments()->delete();
-        foreach ($sale->returns as $ret) {
-            $ret->items()->delete();
-            $ret->payments()->delete();
-            $ret->delete();
-        }
-        $sale->items()->delete();
-        $sale->delete();
+            if ($sale->customer && (float) $sale->due_amount > 0) {
+                $sale->customer->update([
+                    'due_balance' => round(max(0, (float) $sale->customer->due_balance - (float) $sale->due_amount), 2),
+                ]);
+            }
 
-        ActivityLogger::log('sale_delete', "Deleted Sale {$sale->invoice_no} and restored inventory stock.");
+            $sale->payments()->delete();
+
+            foreach ($sale->returns as $return) {
+                $return->payments()->delete();
+                $return->items()->delete();
+                $return->delete();
+            }
+
+            $sale->items()->delete();
+            $sale->delete();
+        });
+
+        ActivityLogger::log('sale_delete', "Deleted Sale {$invoiceNo} and restored inventory stock/payment balances.");
         Flux::toast(variant: 'success', text: __('Sale deleted and stock rearranged successfully.'));
         $this->closeInvoice();
     }
