@@ -984,14 +984,25 @@ new #[Title('Sales Receipts')] class extends Component
         <?php
             $invoicePaperSize = Setting::get('invoice_paper_size', 'thermal_80mm');
             $devName = trim((string) config('app.dev_name', ''));
+            $thermalWidth = $invoicePaperSize === 'thermal_58mm' ? '58mm' : '80mm';
+            $thermalPageSize = $invoicePaperSize === 'thermal_58mm' ? '58mm 210mm' : '80mm 297mm';
+            $businessReceiptPhones = collect([Setting::get('business_phone'), Setting::get('business_phone_2')])
+                ->filter(fn ($value): bool => filled($value))
+                ->implode(' / ');
+            $businessBrNumber = Setting::get('business_br_number');
         ?>
 
         @if ($invoicePaperSize === 'A4')
             @include('partials.a4-invoice', ['sale' => $this->selectedSale, 'devName' => $devName])
         @else
-            <div id="thermal-receipt-template" class="hidden print:block bg-white p-3 font-mono text-[10px] leading-tight text-black max-w-[80mm] mx-auto">
+            <div id="thermal-receipt-template" class="hidden bg-white font-mono text-[10px] leading-tight text-black print:block" style="width: {{ $thermalWidth }}; max-width: {{ $thermalWidth }};">
                 <style>
                     @media print {
+                        @page {
+                            size: {{ $thermalPageSize }};
+                            margin: 0;
+                        }
+
                         body * {
                             visibility: hidden !important;
                         }
@@ -1002,9 +1013,10 @@ new #[Title('Sales Receipts')] class extends Component
                             position: fixed !important;
                             left: 0 !important;
                             top: 0 !important;
-                            width: 100% !important;
+                            width: {{ $thermalWidth }} !important;
+                            max-width: {{ $thermalWidth }} !important;
                             margin: 0 !important;
-                            padding: 10px !important;
+                            padding: 2mm !important;
                             background: white !important;
                             z-index: 9999999 !important;
                         }
@@ -1014,7 +1026,12 @@ new #[Title('Sales Receipts')] class extends Component
                 <div class="text-center mb-3">
                     <h2 class="font-bold text-sm tracking-wide">{{ Setting::get('business_name') }}</h2>
                     <p class="text-[9px] mt-0.5">{{ Setting::get('business_address') }}</p>
-                    <p class="text-[9px] mt-0.5">Tel: {{ Setting::get('business_phone') }}</p>
+                    @if ($businessReceiptPhones)
+                        <p class="text-[9px] mt-0.5">Tel: {{ $businessReceiptPhones }}</p>
+                    @endif
+                    @if ($businessBrNumber)
+                        <p class="text-[9px] mt-0.5">BR No: {{ $businessBrNumber }}</p>
+                    @endif
                 </div>
 
                 <div class="border-b border-dashed border-zinc-400 pb-2 mb-2 flex flex-col gap-0.5">

@@ -16,6 +16,8 @@ new #[Title('Business Info')] class extends Component
     public string $business_tagline = '';
     public string $business_email = '';
     public string $business_phone = '';
+    public string $business_phone_2 = '';
+    public string $business_br_number = '';
     public string $business_address = '';
     public $business_logo = null;
     public ?string $existing_logo = null;
@@ -30,6 +32,8 @@ new #[Title('Business Info')] class extends Component
         $this->business_tagline = Setting::get('business_tagline', '');
         $this->business_email   = Setting::get('business_email', '');
         $this->business_phone   = Setting::get('business_phone', '');
+        $this->business_phone_2 = Setting::get('business_phone_2', '');
+        $this->business_br_number = Setting::get('business_br_number', '');
         $this->business_address = Setting::get('business_address', '');
         $this->existing_logo    = Setting::get('business_logo', null);
     }
@@ -41,6 +45,8 @@ new #[Title('Business Info')] class extends Component
             'business_tagline' => 'nullable|string|max:200',
             'business_email'   => 'nullable|email|max:150',
             'business_phone'   => 'nullable|string|max:30',
+            'business_phone_2' => 'nullable|string|max:30',
+            'business_br_number' => 'nullable|string|max:80',
             'business_address' => 'nullable|string|max:500',
             'business_logo'    => 'nullable|image|max:2048',
         ]);
@@ -59,6 +65,8 @@ new #[Title('Business Info')] class extends Component
         Setting::set('business_tagline', $this->business_tagline, 'general');
         Setting::set('business_email', $this->business_email, 'general');
         Setting::set('business_phone', $this->business_phone, 'general');
+        Setting::set('business_phone_2', $this->business_phone_2, 'general');
+        Setting::set('business_br_number', $this->business_br_number, 'general');
         Setting::set('business_address', $this->business_address, 'general');
 
         ActivityLogger::log('setting_update', 'Updated Business Information.');
@@ -186,9 +194,27 @@ new #[Title('Business Info')] class extends Component
                 <div>
                     <label class="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1.5 flex items-center gap-1.5">
                         <flux:icon.phone class="size-3.5 text-zinc-400 shrink-0" />
-                        {{ __('Business Phone') }}
+                        {{ __('Primary Phone') }}
                     </label>
                     <flux:input wire:model="business_phone" placeholder="0712345678" />
+                </div>
+
+                {{-- Secondary Phone --}}
+                <div>
+                    <label class="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1.5 flex items-center gap-1.5">
+                        <flux:icon.phone-arrow-up-right class="size-3.5 text-zinc-400 shrink-0" />
+                        {{ __('Second Phone Number') }}
+                    </label>
+                    <flux:input wire:model="business_phone_2" placeholder="Optional second number" />
+                </div>
+
+                {{-- BR Number --}}
+                <div>
+                    <label class="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1.5 flex items-center gap-1.5">
+                        <flux:icon.identification class="size-3.5 text-zinc-400 shrink-0" />
+                        {{ __('BR Number') }}
+                    </label>
+                    <flux:input wire:model="business_br_number" placeholder="Business registration number" />
                 </div>
 
                 {{-- Address --}}

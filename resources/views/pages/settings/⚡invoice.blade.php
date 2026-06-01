@@ -3,13 +3,14 @@
 use App\Models\Setting;
 use App\Services\ActivityLogger;
 use Flux\Flux;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
 new #[Title('Invoice Settings')] class extends Component
 {
     public string $invoice_prefix      = 'INV-';
-    public string $invoice_paper_size  = 'A4';
+    public string $invoice_paper_size  = 'thermal_80mm';
     public bool   $invoice_show_logo   = true;
     public string $invoice_footer_text = 'Thank you for your business!';
     public string $invoice_terms       = '';
@@ -21,7 +22,7 @@ new #[Title('Invoice Settings')] class extends Component
         }
 
         $this->invoice_prefix     = Setting::get('invoice_prefix', 'INV-');
-        $this->invoice_paper_size = Setting::get('invoice_paper_size', 'A4');
+        $this->invoice_paper_size = Setting::get('invoice_paper_size', 'thermal_80mm');
         $this->invoice_show_logo  = Setting::get('invoice_show_logo', '1') === '1';
         $this->invoice_footer_text = Setting::get('invoice_footer_note', 'Thank you for your business!');
         $this->invoice_terms      = Setting::get('invoice_terms', '');
@@ -31,7 +32,7 @@ new #[Title('Invoice Settings')] class extends Component
     {
         $this->validate([
             'invoice_prefix'     => 'required|string|max:20',
-            'invoice_paper_size' => 'required|string',
+            'invoice_paper_size' => ['required', 'string', Rule::in(['thermal_80mm', 'thermal_58mm', 'A4', 'A5', 'letter'])],
             'invoice_show_logo'  => 'boolean',
             'invoice_footer_text' => 'nullable|string|max:500',
             'invoice_terms'      => 'nullable|string|max:2000',
@@ -84,11 +85,11 @@ new #[Title('Invoice Settings')] class extends Component
                 <div>
                     <label class="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1.5">{{ __('Paper Size') }}</label>
                     <flux:select wire:model="invoice_paper_size">
+                        <flux:select.option value="thermal_80mm">Thermal 80mm (POS receipt)</flux:select.option>
+                        <flux:select.option value="thermal_58mm">Thermal 58mm (compact receipt)</flux:select.option>
                         <flux:select.option value="A4">A4 (210 × 297 mm)</flux:select.option>
                         <flux:select.option value="A5">A5 (148 × 210 mm)</flux:select.option>
                         <flux:select.option value="letter">Letter (215.9 × 279.4 mm)</flux:select.option>
-                        <flux:select.option value="thermal_80mm">Thermal 80mm</flux:select.option>
-                        <flux:select.option value="thermal_58mm">Thermal 58mm</flux:select.option>
                     </flux:select>
                     <p class="text-[11px] text-zinc-400 mt-1">{{ __('Select receipt paper size for printing') }}</p>
                 </div>
@@ -148,11 +149,11 @@ new #[Title('Invoice Settings')] class extends Component
                 <div class="min-w-0">
                     <p class="text-sm font-semibold text-blue-900 dark:text-blue-300">{{ __('Paper Size Guide') }}</p>
                     <ul class="mt-1.5 space-y-1 text-xs text-blue-700 dark:text-blue-400">
+                        <li>• <strong>Thermal 80mm:</strong> {{ __('Standard POS thermal printer roll') }}</li>
+                        <li>• <strong>Thermal 58mm:</strong> {{ __('Compact thermal printer roll') }}</li>
                         <li>• <strong>A4:</strong> {{ __('Standard office paper (best for detailed invoices)') }}</li>
                         <li>• <strong>A5:</strong> {{ __('Half-size paper for compact receipts') }}</li>
                         <li>• <strong>Letter:</strong> {{ __('US standard paper size') }}</li>
-                        <li>• <strong>Thermal 80mm:</strong> {{ __('Standard POS thermal printer roll') }}</li>
-                        <li>• <strong>Thermal 58mm:</strong> {{ __('Compact thermal printer roll') }}</li>
                     </ul>
                 </div>
             </div>

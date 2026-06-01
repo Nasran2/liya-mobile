@@ -4,6 +4,8 @@
     $businessName = Setting::get('business_name') ?: config('app.name', 'Invoice');
     $businessAddress = Setting::get('business_address');
     $businessPhone = Setting::get('business_phone');
+    $businessPhone2 = Setting::get('business_phone_2');
+    $businessBrNumber = Setting::get('business_br_number');
     $businessEmail = Setting::get('business_email');
     $footerNote = Setting::get('invoice_footer_note');
     $terms = Setting::get('invoice_terms') ?: __('Goods once sold are not refundable except under approved return policy.');
@@ -20,7 +22,7 @@
     $customerPhone = in_array(strtolower($customerPhone), $hiddenValues, true) ? '' : $customerPhone;
     $customerAddress = in_array(strtolower($customerAddress), $hiddenValues, true) ? '' : $customerAddress;
 
-    $businessContact = collect([$businessPhone, $businessEmail])
+    $businessContact = collect([$businessPhone, $businessPhone2, $businessEmail])
         ->filter(fn ($value): bool => filled($value))
         ->implode('  |  ');
 @endphp
@@ -93,6 +95,9 @@
                 @endif
                 @if ($businessContact)
                     <p class="mt-0.5 text-[10px] font-semibold text-slate-400">{{ $businessContact }}</p>
+                @endif
+                @if ($businessBrNumber)
+                    <p class="mt-0.5 text-[10px] font-semibold text-slate-400">{{ __('BR No') }}: {{ $businessBrNumber }}</p>
                 @endif
             </div>
         </header>

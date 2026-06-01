@@ -365,6 +365,43 @@ test('a4 invoice hides empty customer phone and address fields', function () {
         ->assertDontSee('0000000000');
 });
 
+test('thermal 80mm receipt shows br number and both business phones', function () {
+    Setting::set('invoice_paper_size', 'thermal_80mm', 'invoice');
+    Setting::set('business_name', 'SANCO POS', 'business');
+    Setting::set('business_phone', '+94 759151515', 'business');
+    Setting::set('business_phone_2', '+94 772222222', 'business');
+    Setting::set('business_br_number', 'BR-2026-001', 'business');
+    Setting::clearCache();
+
+    $user = User::factory()->create([
+        'role' => 'super_admin',
+        'is_active' => true,
+    ]);
+    $customer = Customer::query()->create([
+        'name' => 'Thermal Customer',
+        'phone' => '0770000004',
+        'opening_balance' => 0,
+        'due_balance' => 0,
+    ]);
+    $product = Product::factory()->create([
+        'selling_price' => 2450,
+        'cost_price' => 1200,
+        'stock_quantity' => 5,
+        'is_active' => true,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::pos.index')
+        ->call('addToCart', $product->id)
+        ->set('customer_id', $customer->id)
+        ->set('paid_amount', 2450)
+        ->call('submitCheckout')
+        ->assertHasNoErrors()
+        ->assertSee('width: 80mm', false)
+        ->assertSee('Tel: +94 759151515 / +94 772222222')
+        ->assertSee('BR No: BR-2026-001');
+});
+
 test('cheque checkout fails with walk-in customer', function () {
     $user = User::factory()->create([
         'role' => 'super_admin',

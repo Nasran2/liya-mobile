@@ -66,6 +66,8 @@ class DatabaseSeeder extends Seeder
             'business_name' => 'Imran Phone Accessories',
             'business_logo' => null,
             'business_phone' => '+94 77 123 4567',
+            'business_phone_2' => '',
+            'business_br_number' => '',
             'business_email' => 'info@imranaccessories.com',
             'business_address' => 'No. 45, Mobile Plaza, Colombo 11, Sri Lanka',
             'currency_symbol' => 'Rs',

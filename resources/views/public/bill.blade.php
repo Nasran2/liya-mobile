@@ -3,6 +3,8 @@
 
     $businessName = Setting::get('business_name', config('app.name'));
     $businessPhone = Setting::get('business_phone');
+    $businessPhone2 = Setting::get('business_phone_2');
+    $businessBrNumber = Setting::get('business_br_number');
     $businessEmail = Setting::get('business_email');
     $businessAddress = Setting::get('business_address');
     $footerNote = Setting::get('invoice_footer_note') ?: __('Thank you for shopping with us. No cash refunds. Exchange valid within 7 days with invoice.');
@@ -18,7 +20,7 @@
     $hiddenValues = ['', '0', '0000000000', 'n/a', 'na', '-'];
     $customerPhone = in_array(strtolower($customerPhone), $hiddenValues, true) ? '' : $customerPhone;
     $customerAddress = in_array(strtolower($customerAddress), $hiddenValues, true) ? '' : $customerAddress;
-    $businessContact = collect([$businessPhone, $businessEmail])->filter(fn ($value): bool => filled($value))->implode(' | ');
+    $businessContact = collect([$businessPhone, $businessPhone2, $businessEmail])->filter(fn ($value): bool => filled($value))->implode(' | ');
 @endphp
 
 <!DOCTYPE html>
@@ -63,6 +65,9 @@
                     @endif
                     @if ($businessContact)
                         <p class="mt-1 text-sm font-semibold text-slate-400">{{ $businessContact }}</p>
+                    @endif
+                    @if ($businessBrNumber)
+                        <p class="mt-1 text-sm font-semibold text-slate-400">{{ __('BR No') }}: {{ $businessBrNumber }}</p>
                     @endif
                 </div>
             </header>
