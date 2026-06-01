@@ -1,5 +1,13 @@
 @php
+    use App\Models\Setting;
+    use Illuminate\Support\Facades\Storage;
+
     $isPosTerminal = request()->routeIs('pos.index');
+    $businessName = Setting::get('business_name', config('app.name', 'Laravel')) ?: config('app.name', 'Laravel');
+    $businessLogo = Setting::get('business_logo');
+    $businessLogoUrl = $businessLogo ? Storage::url($businessLogo) : null;
+    $devName = trim((string) config('app.dev_name', ''));
+    $developerFooter = $devName !== '' ? __('Powered by :name', ['name' => $devName]) : '';
 @endphp
 
 <!DOCTYPE html>
@@ -77,7 +85,11 @@
                         <x-app-logo href="{{ route('dashboard') }}" wire:navigate />
                     </div>
                     <div x-show="sidebarCollapsed" class="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-400">
-                        <flux:icon.bolt class="size-6" />
+                        @if ($businessLogoUrl)
+                            <img src="{{ $businessLogoUrl }}" alt="{{ $businessName }}" class="size-8 rounded-lg bg-white object-contain" />
+                        @else
+                            <flux:icon.bolt class="size-6" />
+                        @endif
                     </div>
 
                     <!-- Sidebar Toggle Action Button -->
@@ -668,14 +680,19 @@
                 </div>
 
                 <!-- User profile footer -->
-                <div class="mt-auto border-t border-zinc-100 dark:border-zinc-850 pt-4 flex items-center" :class="sidebarCollapsed ? 'justify-center' : 'gap-3'">
-                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-100 font-bold text-violet-700 dark:bg-violet-950/50 dark:text-violet-300">
-                        {{ str(auth()->user()->name)->substr(0, 1)->upper() }}
+                <div class="mt-auto border-t border-zinc-100 dark:border-zinc-850 pt-4">
+                    <div class="flex items-center" :class="sidebarCollapsed ? 'justify-center' : 'gap-3'">
+                        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-100 font-bold text-violet-700 dark:bg-violet-950/50 dark:text-violet-300">
+                            {{ str(auth()->user()->name)->substr(0, 1)->upper() }}
+                        </div>
+                        <div x-show="!sidebarCollapsed" class="flex-1 min-w-0">
+                            <p class="text-xs font-bold text-zinc-950 truncate dark:text-zinc-100 leading-tight">{{ auth()->user()->name }}</p>
+                            <p class="text-[10px] text-zinc-400 truncate dark:text-zinc-500">Super Cashier</p>
+                        </div>
                     </div>
-                    <div x-show="!sidebarCollapsed" class="flex-1 min-w-0">
-                        <p class="text-xs font-bold text-zinc-950 truncate dark:text-zinc-100 leading-tight">{{ auth()->user()->name }}</p>
-                        <p class="text-[10px] text-zinc-400 truncate dark:text-zinc-500">Super Cashier</p>
-                    </div>
+                    @if ($developerFooter)
+                        <p x-show="!sidebarCollapsed" class="mt-3 text-center text-[10px] font-semibold text-zinc-400 dark:text-zinc-500">{{ $developerFooter }}</p>
+                    @endif
                 </div>
                 </aside>
             @endunless
@@ -702,7 +719,7 @@
                     </button>
                     
                     <div class="flex-1">
-                        <p class="text-[9px] font-black uppercase tracking-wider text-violet-500/80 dark:text-violet-400">IMRAN POS</p>
+                        <p class="text-[9px] font-black uppercase tracking-wider text-violet-500/80 dark:text-violet-400">{{ $businessName }}</p>
                         <h1 class="font-display text-base font-bold text-zinc-900 leading-tight dark:text-zinc-50">
                             {{ $title ?? __('Dashboard') }}
                         </h1>
@@ -760,7 +777,7 @@
                     <!-- Header -->
                     <div class="flex shrink-0 items-center justify-between border-b border-zinc-100 pb-4 dark:border-zinc-800">
                         <div>
-                            <p class="text-[10px] font-black uppercase tracking-widest text-violet-600 dark:text-violet-400">Retail Core</p>
+                            <p class="text-[10px] font-black uppercase tracking-widest text-violet-600 dark:text-violet-400">{{ $businessName }}</p>
                             <h3 class="font-display text-lg font-bold text-zinc-950 dark:text-zinc-50">Navigation</h3>
                         </div>
                         <button
@@ -949,6 +966,9 @@
                 </div>
 
                 <div class="mt-4 shrink-0 border-t border-zinc-100 pt-4 dark:border-zinc-800">
+                    @if ($developerFooter)
+                        <p class="mb-3 text-center text-[10px] font-semibold text-zinc-400 dark:text-zinc-500">{{ $developerFooter }}</p>
+                    @endif
                     <form method="POST" action="{{ route('logout') }}">
                         @csrf
                         <button type="submit" class="flex w-full items-center justify-center gap-3 rounded-xl bg-rose-50 px-4 py-2.5 text-sm font-bold text-rose-600 hover:bg-rose-100 transition active:scale-95 duration-150 dark:bg-rose-950/20 dark:text-rose-400">

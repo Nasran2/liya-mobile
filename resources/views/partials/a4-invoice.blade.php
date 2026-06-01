@@ -1,7 +1,11 @@
 @php
     use App\Models\Setting;
+    use Illuminate\Support\Facades\Storage;
 
     $businessName = Setting::get('business_name') ?: config('app.name', 'Invoice');
+    $businessLogo = Setting::get('business_logo');
+    $showBusinessLogo = Setting::get('invoice_show_logo', '1') !== '0';
+    $businessLogoUrl = ($showBusinessLogo && $businessLogo) ? Storage::url($businessLogo) : null;
     $businessAddress = Setting::get('business_address');
     $businessPhone = Setting::get('business_phone');
     $businessPhone2 = Setting::get('business_phone_2');
@@ -85,9 +89,13 @@
 
             <div class="max-w-[85mm] text-right">
                 <div class="flex items-center justify-end gap-2">
-                    <span class="inline-flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-violet-600 to-indigo-600 text-white text-xs font-bold shadow-sm shadow-indigo-100">
-                        I
-                    </span>
+                    @if ($businessLogoUrl)
+                        <img src="{{ $businessLogoUrl }}" alt="{{ $businessName }}" class="max-h-10 max-w-[32mm] object-contain">
+                    @else
+                        <span class="inline-flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-violet-600 to-indigo-600 text-white text-xs font-bold shadow-sm shadow-indigo-100">
+                            I
+                        </span>
+                    @endif
                     <span class="text-lg font-black tracking-tight text-slate-900">{{ $businessName }}</span>
                 </div>
                 @if ($businessAddress)

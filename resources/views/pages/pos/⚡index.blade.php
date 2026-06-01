@@ -13,6 +13,7 @@ use App\Services\TextItSmsService;
 use Flux\Flux;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -1949,6 +1950,9 @@ Due: Rs {{ number_format($this->completedSale->due_amount, 2) }}
                 ->filter(fn ($value): bool => filled($value))
                 ->implode(' / ');
             $businessBrNumber = Setting::get('business_br_number');
+            $businessLogo = Setting::get('business_logo');
+            $showBusinessLogo = Setting::get('invoice_show_logo', '1') !== '0';
+            $businessLogoUrl = ($showBusinessLogo && $businessLogo) ? Storage::url($businessLogo) : null;
         ?>
 
         @if ($invoicePaperSize === 'A4')
@@ -1983,6 +1987,9 @@ Due: Rs {{ number_format($this->completedSale->due_amount, 2) }}
                 </style>
 
                 <div class="text-center mb-3">
+                    @if ($businessLogoUrl)
+                        <img src="{{ $businessLogoUrl }}" alt="{{ Setting::get('business_name') }}" class="mx-auto mb-1 max-h-10 max-w-[28mm] object-contain">
+                    @endif
                     <h2 class="font-bold text-sm tracking-wide">{{ Setting::get('business_name') }}</h2>
                     <p class="text-[9px] mt-0.5">{{ Setting::get('business_address') }}</p>
                     @if ($businessReceiptPhones)

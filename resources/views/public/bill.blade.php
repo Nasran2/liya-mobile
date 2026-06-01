@@ -1,7 +1,11 @@
 @php
     use App\Models\Setting;
+    use Illuminate\Support\Facades\Storage;
 
     $businessName = Setting::get('business_name', config('app.name'));
+    $businessLogo = Setting::get('business_logo');
+    $showBusinessLogo = Setting::get('invoice_show_logo', '1') !== '0';
+    $businessLogoUrl = ($showBusinessLogo && $businessLogo) ? Storage::url($businessLogo) : null;
     $businessPhone = Setting::get('business_phone');
     $businessPhone2 = Setting::get('business_phone_2');
     $businessBrNumber = Setting::get('business_br_number');
@@ -21,6 +25,7 @@
     $customerPhone = in_array(strtolower($customerPhone), $hiddenValues, true) ? '' : $customerPhone;
     $customerAddress = in_array(strtolower($customerAddress), $hiddenValues, true) ? '' : $customerAddress;
     $businessContact = collect([$businessPhone, $businessPhone2, $businessEmail])->filter(fn ($value): bool => filled($value))->implode(' | ');
+    $devName = trim((string) config('app.dev_name', ''));
 @endphp
 
 <!DOCTYPE html>
@@ -55,9 +60,13 @@
 
                 <div class="max-w-md sm:text-right">
                     <div class="flex items-center gap-3 sm:justify-end">
-                        <span class="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 text-sm font-black text-white shadow-sm">
-                            I
-                        </span>
+                        @if ($businessLogoUrl)
+                            <img src="{{ $businessLogoUrl }}" alt="{{ $businessName }}" class="max-h-12 max-w-32 rounded-lg object-contain">
+                        @else
+                            <span class="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 text-sm font-black text-white shadow-sm">
+                                I
+                            </span>
+                        @endif
                         <h2 class="text-xl font-black tracking-tight">{{ $businessName }}</h2>
                     </div>
                     @if ($businessAddress)
@@ -193,6 +202,10 @@
                     <p class="mt-3">{{ __('Date') }}</p>
                 </div>
             </footer>
+
+            @if ($devName !== '')
+                <p class="mt-6 text-center text-xs font-semibold text-slate-400">{{ __('Powered by :name', ['name' => $devName]) }}</p>
+            @endif
         </section>
     </main>
 </body>
