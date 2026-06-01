@@ -11,9 +11,9 @@ use Illuminate\Support\Collection;
 class SmsNotificationService
 {
     public const DEFAULT_TEMPLATES = [
-        'sms_template_sale' => 'Hi {cus_name}, thank you for shopping at {business_name}. Bill {invoice_no}: Rs {total}, paid Rs {paid}, due Rs {due}. View: {bill_link}',
+        'sms_template_sale' => 'Hi {cus_name}, Bill {invoice_no}: total Rs {total}. Cash Rs {cash_payment}. Cheques: {cheque_payments}. Hold Rs {hold_amount}. Due Rs {due}. View/print PDF: {bill_link}',
         'sms_template_payment' => 'Hi {cus_name}, payment received for bill {invoice_no}. Paid now: Rs {payment_amount}. Remaining due: Rs {due}. View: {bill_link} - {business_name}',
-        'sms_template_cheque_passed' => 'Hi {cus_name}, your cheque payment for bill {invoice_no} has passed. Amount: Rs {payment_amount}. Remaining due: Rs {due}. View: {bill_link}',
+        'sms_template_cheque_passed' => 'Hi {cus_name}, cheque {cheque_no} dated {cheque_date} for bill {invoice_no} has passed. Amount Rs {payment_amount}. Hold Rs {hold_amount}. Due Rs {due}. View: {bill_link}',
         'sms_template_cheque_reminder' => 'Hi {cus_name}, reminder: cheque {cheque_no} for bill {invoice_no} is due on {cheque_date}. Amount: Rs {payment_amount}. Contact {business_phone} if needed.',
     ];
 
@@ -28,6 +28,9 @@ class SmsNotificationService
         '{total}' => 'Invoice grand total.',
         '{paid}' => 'Total paid amount on the invoice.',
         '{due}' => 'Remaining invoice due amount.',
+        '{cash_payment}' => 'Cash amount paid on this invoice.',
+        '{cheque_payments}' => 'Cheque numbers, dates, and amounts on this invoice.',
+        '{hold_amount}' => 'Pending cheque hold amount before the cheque is passed.',
         '{payment_amount}' => 'Amount paid in the latest payment or cheque.',
         '{payment_method}' => 'Payment method such as cash, card, bank transfer, or cheque.',
         '{cheque_bank}' => 'Cheque bank name from the payment.',

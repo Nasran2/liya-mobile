@@ -1,10 +1,12 @@
 <?php
 
 use App\Models\Customer;
+use App\Models\Payment;
 use App\Models\Sale;
 use App\Models\Setting;
 use App\Models\SmsLog;
 use App\Models\User;
+use App\Services\ChequePaymentService;
 use App\Services\SmsNotificationService;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -55,6 +57,7 @@ test('public bill link opens without authentication', function () {
         ->assertSee($sale->invoice_no)
         ->assertSee('SMS Customer')
         ->assertSee('Retail Bill')
+        ->assertSee('Print / Save PDF')
         ->assertDontSee('Tax Invoice')
         ->assertDontSee('Sales Tax');
 });
@@ -75,6 +78,83 @@ test('sale sms includes the public bill link', function () {
     });
 
     expect(SmsLog::query()->where('ref_no', 'SALE-'.$sale->id)->where('status', 'success')->exists())->toBeTrue();
+});
+
+test('sale sms includes cash cheque hold due and public bill details', function () {
+    enableSmsSettings();
+    Setting::set('sms_template_sale', 'Bill {invoice_no} Cash Rs {cash_payment} Cheques {cheque_payments} Hold Rs {hold_amount} Due Rs {due} Link {bill_link}', 'sms');
+    Http::fake(['textit.biz/*' => Http::response('OK:SMS123')]);
+
+    $sale = createSmsSale(100000);
+    $sale->update([
+        'paid_amount' => 30000,
+        'due_amount' => 0,
+        'payment_status' => 'cheque_pending',
+    ]);
+    $sale->payments()->create([
+        'amount' => 30000,
+        'payment_method' => 'cash',
+        'date' => today(),
+        'reference' => 'CASH-COUNTER',
+    ]);
+    $sale->payments()->create([
+        'amount' => 70000,
+        'payment_method' => 'cheque',
+        'date' => today(),
+        'reference' => 'CHQ-4321',
+        'cheque_bank' => 'BOC',
+        'cheque_no' => 'CHQ-4321',
+        'cheque_date' => today()->addDays(2),
+        'cheque_status' => 'pending',
+    ]);
+
+    app(SmsNotificationService::class)->notifySaleCreated($sale);
+
+    Http::assertSent(function (Request $request) use ($sale): bool {
+        $text = $request->data()['text'];
+
+        return str_contains($text, 'Cash Rs 30,000.00')
+            && str_contains($text, 'CHQ-4321 '.today()->addDays(2)->toDateString().' Rs 70,000.00 (Pending)')
+            && str_contains($text, 'Hold Rs 70,000.00')
+            && str_contains($text, 'Due Rs 0.00')
+            && str_contains($text, route('public.bill', ['sale' => $sale->invoice_no]));
+    });
+});
+
+test('cheque passed sms includes cheque details and public bill link', function () {
+    enableSmsSettings();
+    Setting::set('sms_template_cheque_passed', 'Passed {cheque_no} {cheque_date} Rs {payment_amount} Hold Rs {hold_amount} Due Rs {due} View {bill_link}', 'sms');
+    Http::fake(['textit.biz/*' => Http::response('OK:SMS123')]);
+
+    $sale = createSmsSale(5000);
+    $sale->update([
+        'paid_amount' => 0,
+        'due_amount' => 0,
+        'payment_status' => 'cheque_pending',
+    ]);
+    $payment = $sale->payments()->create([
+        'amount' => 5000,
+        'payment_method' => 'cheque',
+        'date' => today(),
+        'reference' => 'CHQ-900',
+        'cheque_bank' => 'BOC',
+        'cheque_no' => 'CHQ-900',
+        'cheque_date' => today()->addDay(),
+        'cheque_status' => 'pending',
+    ]);
+
+    app(ChequePaymentService::class)->pass($payment);
+
+    Http::assertSent(function (Request $request) use ($sale): bool {
+        $text = $request->data()['text'];
+
+        return str_contains($text, 'Passed CHQ-900 '.today()->addDay()->toDateString().' Rs 5,000.00')
+            && str_contains($text, 'Hold Rs 0.00')
+            && str_contains($text, 'Due Rs 0.00')
+            && str_contains($text, route('public.bill', ['sale' => $sale->invoice_no]));
+    });
+
+    expect(Payment::query()->where('cheque_no', 'CHQ-900')->value('cheque_status'))->toBe('passed');
 });
 
 test('sms settings page saves gateway toggles and editable templates', function () {
