@@ -1029,7 +1029,9 @@ new #[Title('Sales Receipts')] class extends Component
 
                 <div class="text-center mb-3">
                     @if ($businessLogoUrl)
-                        <img src="{{ $businessLogoUrl }}" alt="{{ Setting::get('business_name') }}" class="mx-auto mb-1 max-h-10 max-w-[28mm] object-contain">
+                        <div class="mx-auto mb-1 flex h-[14mm] w-[18mm] items-center justify-center overflow-hidden bg-white">
+                            <img src="{{ $businessLogoUrl }}" alt="{{ Setting::get('business_name') }}" class="h-full w-full object-contain">
+                        </div>
                     @endif
                     <h2 class="font-bold text-sm tracking-wide">{{ Setting::get('business_name') }}</h2>
                     <p class="text-[9px] mt-0.5">{{ Setting::get('business_address') }}</p>

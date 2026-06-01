@@ -87,16 +87,18 @@
                 </div>
             </div>
 
-            <div class="max-w-[85mm] text-right">
-                <div class="flex items-center justify-end gap-2">
-                    @if ($businessLogoUrl)
-                        <img src="{{ $businessLogoUrl }}" alt="{{ $businessName }}" class="max-h-10 max-w-[32mm] object-contain">
-                    @else
-                        <span class="inline-flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-violet-600 to-indigo-600 text-white text-xs font-bold shadow-sm shadow-indigo-100">
-                            I
-                        </span>
-                    @endif
-                    <span class="text-lg font-black tracking-tight text-slate-900">{{ $businessName }}</span>
+            <div class="max-w-[78mm] text-right">
+                <div class="flex items-start justify-end gap-2.5">
+                    <div class="flex h-[16mm] w-[20mm] shrink-0 items-center justify-center overflow-hidden rounded-md border border-slate-100 bg-white">
+                        @if ($businessLogoUrl)
+                            <img src="{{ $businessLogoUrl }}" alt="{{ $businessName }}" class="h-full w-full object-contain">
+                        @else
+                            <span class="inline-flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-violet-600 to-indigo-600 text-white text-xs font-bold shadow-sm shadow-indigo-100">
+                                I
+                            </span>
+                        @endif
+                    </div>
+                    <span class="max-w-[48mm] text-lg font-black leading-tight tracking-tight text-slate-900">{{ $businessName }}</span>
                 </div>
                 @if ($businessAddress)
                     <p class="mt-1.5 text-[11px] leading-relaxed text-slate-500">{{ $businessAddress }}</p>
