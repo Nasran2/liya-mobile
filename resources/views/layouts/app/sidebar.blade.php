@@ -46,7 +46,7 @@
             mobileMenuOpen: false, 
             sidebarCollapsed: localStorage.sidebarCollapsed === 'true',
             isDark: localStorage.theme === 'dark',
-            expandedMenu: localStorage.expandedMenu || '{{ request()->routeIs('pos.*') ? 'pos' : (request()->routeIs('products.*') ? 'products' : (request()->routeIs('parties.suppliers') ? 'suppliers' : (request()->routeIs('parties.customers') ? 'customers' : (request()->routeIs('purchases.*') ? 'purchases' : (request()->routeIs('expenses.*') ? 'expenses' : (request()->routeIs('accounting.*') ? 'accounting' : (request()->routeIs('reports.*') ? 'reports' : (request()->routeIs('settings.*') || request()->routeIs('profile.edit') || request()->routeIs('security.edit') || request()->routeIs('appearance.edit') || request()->routeIs('developer.*') ? 'settings' : 'dashboard')))))))) }}',
+            expandedMenu: localStorage.expandedMenu || '{{ request()->routeIs('pos.*') ? 'pos' : (request()->routeIs('products.*') ? 'products' : (request()->routeIs('parties.suppliers', 'parties.supplier-transactions') ? 'suppliers' : (request()->routeIs('parties.customers', 'parties.customer-transactions') ? 'customers' : (request()->routeIs('purchases.*') ? 'purchases' : (request()->routeIs('expenses.*') ? 'expenses' : (request()->routeIs('accounting.*') ? 'accounting' : (request()->routeIs('reports.*') ? 'reports' : (request()->routeIs('settings.*') || request()->routeIs('profile.edit') || request()->routeIs('security.edit') || request()->routeIs('appearance.edit') || request()->routeIs('developer.*') ? 'settings' : 'dashboard')))))))) }}',
             
             toggleSidebar() {
                 this.sidebarCollapsed = !this.sidebarCollapsed;
@@ -222,6 +222,10 @@
                                         <flux:icon.users class="size-4 text-zinc-400" />
                                         <span>Suppliers List</span>
                                     </a>
+                                    <a href="{{ route('parties.supplier-transactions') }}" wire:navigate class="flex items-center gap-2.5 py-1.5 text-sm font-medium text-zinc-500 hover:text-violet-600 dark:text-zinc-400 dark:hover:text-violet-400">
+                                        <flux:icon.banknotes class="size-4 text-zinc-400" />
+                                        <span>Supplier Transactions</span>
+                                    </a>
                                     <a href="{{ route('purchases.create') }}" wire:navigate class="flex items-center gap-2.5 py-1.5 text-sm font-medium text-zinc-500 hover:text-violet-600 dark:text-zinc-400 dark:hover:text-violet-400">
                                         <flux:icon.plus class="size-4 text-zinc-400" />
                                         <span>Add Restock Order</span>
@@ -265,6 +269,10 @@
                                     <a href="{{ route('parties.customers') }}" wire:navigate class="flex items-center gap-2.5 py-1.5 text-sm font-medium text-zinc-500 hover:text-violet-600 dark:text-zinc-400 dark:hover:text-violet-400">
                                         <flux:icon.user-group class="size-4 text-zinc-400" />
                                         <span>Customers Directory</span>
+                                    </a>
+                                    <a href="{{ route('parties.customer-transactions') }}" wire:navigate class="flex items-center gap-2.5 py-1.5 text-sm font-medium text-zinc-500 hover:text-violet-600 dark:text-zinc-400 dark:hover:text-violet-400">
+                                        <flux:icon.banknotes class="size-4 text-zinc-400" />
+                                        <span>Customer Transactions</span>
                                     </a>
                                 </div>
                             </div>
@@ -841,6 +849,7 @@
                                 </button>
                                 <div x-show="expandedMenu === 'suppliers'" x-transition class="ml-12 space-y-1 border-l border-zinc-100 pl-3 dark:border-zinc-800">
                                     <a href="{{ route('parties.suppliers') }}" wire:navigate @click="mobileMenuOpen = false" class="flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm font-medium text-zinc-500 hover:text-violet-600 dark:text-zinc-400 dark:hover:text-violet-400"><flux:icon.users class="size-4 text-zinc-400" /><span>{{ __('Suppliers List') }}</span></a>
+                                    <a href="{{ route('parties.supplier-transactions') }}" wire:navigate @click="mobileMenuOpen = false" class="flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm font-medium text-zinc-500 hover:text-violet-600 dark:text-zinc-400 dark:hover:text-violet-400"><flux:icon.banknotes class="size-4 text-zinc-400" /><span>{{ __('Supplier Transactions') }}</span></a>
                                     <a href="{{ route('purchases.create') }}" wire:navigate @click="mobileMenuOpen = false" class="flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm font-medium text-zinc-500 hover:text-violet-600 dark:text-zinc-400 dark:hover:text-violet-400"><flux:icon.plus class="size-4 text-zinc-400" /><span>{{ __('Add Restock Order') }}</span></a>
                                 </div>
                             </div>
@@ -854,6 +863,7 @@
                                 </button>
                                 <div x-show="expandedMenu === 'customers'" x-transition class="ml-12 space-y-1 border-l border-zinc-100 pl-3 dark:border-zinc-800">
                                     <a href="{{ route('parties.customers') }}" wire:navigate @click="mobileMenuOpen = false" class="flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm font-medium text-zinc-500 hover:text-violet-600 dark:text-zinc-400 dark:hover:text-violet-400"><flux:icon.user-group class="size-4 text-zinc-400" /><span>{{ __('Customers Directory') }}</span></a>
+                                    <a href="{{ route('parties.customer-transactions') }}" wire:navigate @click="mobileMenuOpen = false" class="flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm font-medium text-zinc-500 hover:text-violet-600 dark:text-zinc-400 dark:hover:text-violet-400"><flux:icon.banknotes class="size-4 text-zinc-400" /><span>{{ __('Customer Transactions') }}</span></a>
                                 </div>
                             </div>
 
