@@ -4,6 +4,7 @@ use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Cache;
+use Livewire\Attributes\Modelable;
 use Livewire\Component;
 
 new class extends Component
@@ -16,7 +17,15 @@ new class extends Component
 
     public string $selectedModel = '';
 
+    #[Modelable]
+    public string $saleDate = '';
+
     public int $productLimit = self::PRODUCT_BATCH_SIZE;
+
+    public function mount(string $saleDate = ''): void
+    {
+        $this->saleDate = $saleDate ?: today()->toDateString();
+    }
 
     public function updated(string $property, mixed $value = null): void
     {
@@ -124,7 +133,7 @@ new class extends Component
 ?>
 
 <div class="min-w-0">
-    <div class="grid min-w-0 gap-3 sm:grid-cols-2">
+    <div class="grid min-w-0 gap-3 md:grid-cols-[minmax(0,1fr)_12rem_minmax(0,1fr)]">
         <div class="flex min-w-0 items-center gap-3 rounded-3xl border border-zinc-200 bg-white px-4 py-3 shadow-[0_12px_35px_rgba(15,23,42,0.05)]">
             <flux:icon.magnifying-glass class="size-5 shrink-0 text-zinc-400" />
             <input
@@ -132,6 +141,16 @@ new class extends Component
                 type="text"
                 placeholder="Search accessories, SKU, barcode..."
                 class="min-w-0 w-full bg-transparent text-sm font-semibold text-zinc-950 placeholder:text-zinc-400 focus:outline-none"
+            />
+        </div>
+
+        <div class="flex min-w-0 items-center gap-3 rounded-3xl border border-zinc-200 bg-white px-4 py-3 shadow-[0_12px_35px_rgba(15,23,42,0.05)]">
+            <flux:icon.calendar-days class="size-4 shrink-0 text-zinc-400" />
+            <input
+                wire:model.live="saleDate"
+                type="date"
+                aria-label="{{ __('Sale date') }}"
+                class="min-w-0 w-full bg-transparent text-sm font-semibold text-zinc-950 focus:outline-none"
             />
         </div>
 

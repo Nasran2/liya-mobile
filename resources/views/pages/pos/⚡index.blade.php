@@ -37,6 +37,7 @@ new #[Title('POS Terminal')] class extends Component
     public string $cheque_bank = '';
     public string $cheque_no = '';
     public string $cheque_date = '';
+    public string $saleDate = '';
     public array $paymentRows = [];
     public string $notes = '';
     public string $customerSearch = '';
@@ -112,6 +113,7 @@ new #[Title('POS Terminal')] class extends Component
 
         $this->allowNegativeStock = Setting::get('pos_allow_negative_stock', '0') !== '0';
         $this->paymentRows = [$this->blankPaymentRow()];
+        $this->saleDate = today()->toDateString();
 
         if ($sale && $sale->exists) {
             $this->editingSale = $sale;
@@ -120,6 +122,7 @@ new #[Title('POS Terminal')] class extends Component
             $this->discount_type = 'fixed';
             $this->tax = (float) $sale->tax_amount;
             $this->notes = $sale->notes ?? '';
+            $this->saleDate = $sale->date?->toDateString() ?? today()->toDateString();
             
             // Add items to cart
             foreach ($sale->items as $item) {
@@ -498,6 +501,7 @@ new #[Title('POS Terminal')] class extends Component
 
         $rules = [
             'customer_id' => 'required|exists:customers,id',
+            'saleDate' => 'required|date',
             'cart' => 'required|array|min:1',
             'discount' => 'required|numeric|min:0',
             'tax' => 'required|numeric|min:0',
@@ -589,6 +593,7 @@ new #[Title('POS Terminal')] class extends Component
 
             $sale->update([
                 'customer_id' => $this->customer_id,
+                'date' => $this->saleDate,
                 'subtotal_amount' => $subtotal,
                 'discount_amount' => (float) $this->cartDiscountAmount,
                 'tax_amount' => (float) $this->tax,
@@ -610,7 +615,7 @@ new #[Title('POS Terminal')] class extends Component
             $sale = Sale::query()->create([
                 'customer_id' => $this->customer_id,
                 'invoice_no' => $invoiceNo,
-                'date' => date('Y-m-d'),
+                'date' => $this->saleDate,
                 'subtotal_amount' => $subtotal,
                 'discount_amount' => (float) $this->cartDiscountAmount,
                 'tax_amount' => (float) $this->tax,
@@ -649,7 +654,7 @@ new #[Title('POS Terminal')] class extends Component
             $sale->payments()->create([
                 'amount' => $paymentRow['amount'],
                 'payment_method' => $paymentRow['method'],
-                'date' => date('Y-m-d'),
+                'date' => $this->saleDate,
                 'reference' => $isChequePayment ? $paymentRow['cheque_no'] : $paymentRow['reference'],
                 'cheque_bank' => $isChequePayment ? $paymentRow['cheque_bank'] : null,
                 'cheque_no' => $isChequePayment ? $paymentRow['cheque_no'] : null,
@@ -708,6 +713,7 @@ new #[Title('POS Terminal')] class extends Component
     public function resetCart(): void
     {
         $this->reset('cart', 'discount', 'discount_type', 'tax', 'paid_amount', 'payment_method', 'payment_reference', 'cheque_bank', 'cheque_no', 'cheque_date', 'notes', 'customerSearch', 'paymentRows');
+        $this->saleDate = today()->toDateString();
         $this->paymentRows = [$this->blankPaymentRow()];
         $defaultCust = Customer::query()->where('name', 'Walk-in Customer')->first();
         $this->customer_id = $defaultCust ? $defaultCust->id : '';
@@ -1263,7 +1269,7 @@ new #[Title('POS Terminal')] class extends Component
     <div class="grid min-h-0 min-w-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_390px]">
         <!-- 1. Left Column: Product Catalog -->
         <div class="min-w-0">
-            <livewire:pos.product-catalog />
+            <livewire:pos.product-catalog wire:model.live="saleDate" />
         </div>
 
         <!-- 2. Right Column: Desktop Cart Panel (Hidden on Mobile) -->

@@ -4,6 +4,7 @@ use App\Livewire\Dashboard\ChequeFollowUp;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Sale;
+use App\Models\Setting;
 use App\Models\User;
 use Livewire\Livewire;
 
@@ -28,6 +29,8 @@ test('authenticated users can visit the dashboard', function () {
 test('authenticated users receive a left side mobile navigation drawer', function () {
     $user = User::factory()->create();
     $this->actingAs($user);
+
+    Setting::set('business_name', 'Retail Core', 'general');
 
     $this->get(route('dashboard'))
         ->assertOk()

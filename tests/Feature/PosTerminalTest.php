@@ -38,6 +38,13 @@ test('pos product search filters the catalog', function () {
         ->assertDontSee('Magnetic Car Holder');
 });
 
+test('pos product catalog shows a changeable sale date picker', function () {
+    Livewire::test('pos.product-catalog', ['saleDate' => '2026-05-24'])
+        ->assertSet('saleDate', '2026-05-24')
+        ->assertSee('type="date"', false)
+        ->assertSee('aria-label="Sale date"', false);
+});
+
 test('adding a product to the cart does not rerender the product catalog', function () {
     $user = User::factory()->create([
         'role' => 'super_admin',
@@ -64,6 +71,42 @@ test('adding a product to the cart does not rerender the product catalog', funct
         ->assertSet('cart.0.quantity', 1);
 
     expect($productSelects)->toBe(1);
+});
+
+test('pos checkout defaults to today and stores the selected sale date', function () {
+    $user = User::factory()->create([
+        'role' => 'super_admin',
+        'is_active' => true,
+    ]);
+    $customer = Customer::query()->create([
+        'name' => 'Date Change Customer',
+        'phone' => '0770000111',
+        'opening_balance' => 0,
+        'due_balance' => 0,
+    ]);
+    $product = Product::factory()->create([
+        'cost_price' => 500,
+        'selling_price' => 1200,
+        'stock_quantity' => 5,
+        'is_active' => true,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::pos.index')
+        ->assertSet('saleDate', today()->toDateString())
+        ->call('addToCart', $product->id)
+        ->set('customer_id', $customer->id)
+        ->set('saleDate', '2026-05-24')
+        ->set('paid_amount', 1200)
+        ->call('submitCheckout')
+        ->assertHasNoErrors()
+        ->assertSet('saleDate', today()->toDateString());
+
+    $sale = Sale::query()->with('payments')->firstOrFail();
+
+    expect($sale->date->toDateString())->toBe('2026-05-24')
+        ->and($sale->payments)->toHaveCount(1)
+        ->and($sale->payments->first()->date->toDateString())->toBe('2026-05-24');
 });
 
 test('cashier can edit cart item quantity price and discount', function () {
