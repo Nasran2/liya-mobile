@@ -127,6 +127,81 @@ test('purchases index links to supplier list page and products details', functio
         ->assertSee(route('products.show', $product->id));
 });
 
+test('purchase can be edited from the purchase form and recalculates stock payments and supplier due', function () {
+    $user = User::factory()->create(['role' => 'super_admin', 'is_active' => true]);
+    $supplier = Supplier::query()->create([
+        'name' => 'Editable Supplier',
+        'opening_balance' => 0,
+        'due_balance' => 100,
+    ]);
+    $product = Product::factory()->create([
+        'name' => 'Editable Restock Item',
+        'cost_price' => 100,
+        'selling_price' => 150,
+        'stock_quantity' => 10,
+    ]);
+
+    $purchase = Purchase::query()->create([
+        'supplier_id' => $supplier->id,
+        'invoice_no' => 'PUR-EDIT-100',
+        'date' => '2026-05-21',
+        'total_amount' => 200,
+        'discount' => 0,
+        'tax' => 0,
+        'grand_total' => 200,
+        'paid_amount' => 100,
+        'due_amount' => 100,
+        'payment_status' => 'partial',
+    ]);
+
+    $purchase->items()->create([
+        'product_id' => $product->id,
+        'quantity' => 2,
+        'cost_price' => 100,
+        'selling_price' => 150,
+        'subtotal' => 200,
+    ]);
+
+    $purchase->payments()->create([
+        'amount' => 100,
+        'payment_method' => 'cash',
+        'date' => '2026-05-21',
+        'reference' => 'OLD-CASH',
+        'notes' => 'Original purchase payment',
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('purchases.index'))
+        ->assertOk()
+        ->assertSee(route('purchases.edit', $purchase), false);
+
+    Livewire::actingAs($user)
+        ->test('pages::purchases.create', ['purchase' => $purchase])
+        ->assertSet('editingPurchaseId', $purchase->id)
+        ->assertSet('invoice_no', 'PUR-EDIT-100')
+        ->assertSet('cart.0.product_id', $product->id)
+        ->call('updateCartRow', 0, 'quantity', 3)
+        ->set('paymentRows.0.amount', 250)
+        ->set('paymentRows.0.reference', 'UPDATED-CASH')
+        ->call('savePurchase')
+        ->assertHasNoErrors()
+        ->assertRedirect(route('purchases.index', absolute: false));
+
+    $purchase->refresh()->load('items', 'payments');
+
+    expect((float) $purchase->grand_total)->toBe(300.0)
+        ->and((float) $purchase->paid_amount)->toBe(250.0)
+        ->and((float) $purchase->due_amount)->toBe(50.0)
+        ->and($purchase->payment_status)->toBe('partial')
+        ->and($purchase->items)->toHaveCount(1)
+        ->and((int) $purchase->items->first()->quantity)->toBe(3)
+        ->and($purchase->payments)->toHaveCount(1)
+        ->and((float) $purchase->payments->first()->amount)->toBe(250.0)
+        ->and($purchase->payments->first()->reference)->toBe('UPDATED-CASH')
+        ->and((int) $product->refresh()->stock_quantity)->toBe(11)
+        ->and((float) $supplier->refresh()->due_balance)->toBe(50.0);
+});
+
 test('purchase can be recorded with a selected party cheque hold', function () {
     $user = User::factory()->create(['role' => 'super_admin', 'is_active' => true]);
     $supplier = Supplier::query()->create([

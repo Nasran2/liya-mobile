@@ -19,6 +19,7 @@ use Illuminate\Validation\Rule;
 
 new #[Title('Record Wholesale Purchase')] class extends Component
 {
+    public ?int $editingPurchaseId = null;
     public string $invoice_no = '';
     public string $date = '';
     public ?int $supplier_id = null;
@@ -55,10 +56,15 @@ new #[Title('Record Wholesale Purchase')] class extends Component
     public array $paymentRows = [];
     public string $notes = '';
 
-    public function mount(): void
+    public function mount(?Purchase $purchase = null): void
     {
+        if ($purchase?->exists) {
+            $this->loadPurchaseForEditing($purchase);
+
+            return;
+        }
+
         $this->date = date('Y-m-d');
-        // Generate automatic purchase ref
         $this->invoice_no = 'PUR-' . date('ymd') . '-' . rand(100, 999);
         $this->paymentRows = [$this->blankPaymentRow()];
 
@@ -319,7 +325,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
     public function savePurchase(): void
     {
         $rules = [
-            'invoice_no' => 'required|string|unique:purchases,invoice_no',
+            'invoice_no' => ['required', 'string', Rule::unique(Purchase::class, 'invoice_no')->ignore($this->editingPurchaseId)],
             'date' => 'required|date',
             'supplier_id' => 'required|exists:suppliers,id',
             'cart' => 'required|array|min:1',
@@ -394,8 +400,17 @@ new #[Title('Record Wholesale Purchase')] class extends Component
         }
 
         DB::transaction(function () use ($subtotal, $grandTotal, $capturedPaidAmount, $dueAmount, $paymentStatus, $paymentRows): void {
-            // 1. Create Purchase Invoice
-            $purchase = Purchase::query()->create([
+            $purchase = $this->editingPurchaseId
+                ? Purchase::query()->with(['items', 'payments'])->findOrFail($this->editingPurchaseId)
+                : new Purchase();
+
+            $oldSupplierId = $purchase->supplier_id;
+            $oldDueAmount = (float) ($purchase->due_amount ?? 0);
+            $oldItemQuantities = $purchase->exists
+                ? $purchase->items->groupBy('product_id')->map(fn ($items): int => (int) $items->sum('quantity'))->all()
+                : [];
+
+            $purchase->fill([
                 'supplier_id' => $this->supplier_id,
                 'invoice_no' => $this->invoice_no,
                 'date' => $this->date,
@@ -407,9 +422,14 @@ new #[Title('Record Wholesale Purchase')] class extends Component
                 'due_amount' => $dueAmount,
                 'payment_status' => $paymentStatus,
                 'notes' => $this->notes,
-            ]);
+            ])->save();
 
-            // 2. Process Cart Items
+            if ($purchase->wasRecentlyCreated === false) {
+                $purchase->items()->delete();
+                $purchase->payments()->delete();
+            }
+
+            $newItemQuantities = [];
             foreach ($this->cart as $item) {
                 $purchase->items()->create([
                     'product_id' => $item['product_id'],
@@ -419,16 +439,28 @@ new #[Title('Record Wholesale Purchase')] class extends Component
                     'subtotal' => $item['subtotal'],
                 ]);
 
-                // Adjust inventory stock levels & pricing defaults
-                $product = Product::query()->findOrFail($item['product_id']);
-                $product->increment('stock_quantity', $item['quantity']);
-                $product->update([
-                    'cost_price' => $item['cost_price'],
-                    'selling_price' => $item['selling_price'],
-                ]);
+                $productId = (int) $item['product_id'];
+                $newItemQuantities[$productId] = ($newItemQuantities[$productId] ?? 0) + (int) $item['quantity'];
             }
 
-            // 3. Log outward payment or cheque hold if paid
+            foreach ($newItemQuantities as $productId => $newQuantity) {
+                $oldQuantity = (int) ($oldItemQuantities[$productId] ?? 0);
+                $this->adjustProductStock($productId, $newQuantity - $oldQuantity);
+            }
+
+            foreach (array_diff_key($oldItemQuantities, $newItemQuantities) as $productId => $oldQuantity) {
+                $this->adjustProductStock((int) $productId, -((int) $oldQuantity));
+            }
+
+            foreach ($this->cart as $item) {
+                Product::query()
+                    ->whereKey($item['product_id'])
+                    ->update([
+                        'cost_price' => $item['cost_price'],
+                        'selling_price' => $item['selling_price'],
+                    ]);
+            }
+
             foreach ($paymentRows as $paymentRow) {
                 if ($paymentRow['amount'] <= 0) {
                     continue;
@@ -444,7 +476,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
                     'cheque_bank' => $isChequePayment ? $paymentRow['cheque_bank'] : null,
                     'cheque_no' => $isChequePayment ? $paymentRow['cheque_no'] : null,
                     'cheque_date' => $isChequePayment ? $paymentRow['cheque_date'] : null,
-                    'cheque_status' => $isChequePayment ? 'pending' : null,
+                    'cheque_status' => $isChequePayment ? $paymentRow['cheque_status'] : null,
                     'cheque_type' => $isChequePayment ? $paymentRow['cheque_type'] : null,
                     'source_payment_id' => $isChequePayment && $paymentRow['cheque_type'] === 'party' ? $paymentRow['source_payment_id'] : null,
                     'party_customer_id' => $isChequePayment && $paymentRow['cheque_type'] === 'party' ? $paymentRow['party_customer_id'] : null,
@@ -452,15 +484,34 @@ new #[Title('Record Wholesale Purchase')] class extends Component
                 ]);
             }
 
-            // 4. Update supplier outstanding accounts payable due
-            if ($dueAmount > 0) {
-                $supplier = Supplier::query()->findOrFail($this->supplier_id);
-                $supplier->increment('due_balance', $dueAmount);
+            if ($oldSupplierId && $oldSupplierId !== $purchase->supplier_id && $oldDueAmount > 0) {
+                $oldSupplier = Supplier::query()->find($oldSupplierId);
+                if ($oldSupplier) {
+                    $oldSupplier->update([
+                        'due_balance' => round(max(0, (float) $oldSupplier->due_balance - $oldDueAmount), 2),
+                    ]);
+                }
+
+                $supplier = Supplier::query()->findOrFail($purchase->supplier_id);
+                $supplier->update([
+                    'due_balance' => round(max(0, (float) $supplier->due_balance + $dueAmount), 2),
+                ]);
+            } else {
+                $dueDelta = round($dueAmount - $oldDueAmount, 2);
+                if ($dueDelta !== 0.0) {
+                    $supplier = Supplier::query()->findOrFail($purchase->supplier_id);
+                    $supplier->update([
+                        'due_balance' => round(max(0, (float) $supplier->due_balance + $dueDelta), 2),
+                    ]);
+                }
             }
         });
 
-        ActivityLogger::log('purchase_create', "Registered restock invoice {$this->invoice_no}. Total: Rs {$grandTotal}, Supplier Dues: Rs {$dueAmount}.");
-        Flux::toast(variant: 'success', text: __('Purchase restock successfully recorded.'));
+        ActivityLogger::log(
+            $this->editingPurchaseId ? 'purchase_update' : 'purchase_create',
+            ($this->editingPurchaseId ? 'Updated' : 'Registered') . " restock invoice {$this->invoice_no}. Total: Rs {$grandTotal}, Supplier Dues: Rs {$dueAmount}."
+        );
+        Flux::toast(variant: 'success', text: $this->editingPurchaseId ? __('Purchase restock successfully updated.') : __('Purchase restock successfully recorded.'));
 
         $this->redirectRoute('purchases.index', navigate: true);
     }
@@ -554,6 +605,12 @@ new #[Title('Record Wholesale Purchase')] class extends Component
             ->find($this->party_cheque_payment_id);
     }
 
+    #[Computed]
+    public function isEditing(): bool
+    {
+        return $this->editingPurchaseId !== null;
+    }
+
     public function selectPartyCheque(int $paymentId): void
     {
         $payment = $this->findAvailablePartyCheque($paymentId);
@@ -598,6 +655,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
             'cheque_no' => '',
             'cheque_bank' => '',
             'cheque_date' => '',
+            'cheque_status' => 'pending',
             'party_cheque_search' => '',
             'party_cheque_payment_id' => null,
         ];
@@ -616,6 +674,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
         $this->paymentRows[0]['cheque_no'] = $this->cheque_no;
         $this->paymentRows[0]['cheque_bank'] = $this->cheque_bank;
         $this->paymentRows[0]['cheque_date'] = $this->cheque_date;
+        $this->paymentRows[0]['cheque_status'] = $this->paymentRows[0]['cheque_status'] ?? 'pending';
         $this->paymentRows[0]['party_cheque_search'] = $this->party_cheque_search;
         $this->paymentRows[0]['party_cheque_payment_id'] = $this->party_cheque_payment_id;
     }
@@ -650,6 +709,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
             ->map(function (array $row) use ($validateSourceCheques): array {
                 $method = in_array($row['method'] ?? 'cash', ['cash', 'bank_transfer', 'cheque'], true) ? $row['method'] : 'cash';
                 $chequeType = in_array($row['cheque_type'] ?? 'party', ['own', 'party'], true) ? $row['cheque_type'] : 'party';
+                $chequeStatus = in_array($row['cheque_status'] ?? 'pending', ['pending', 'passed'], true) ? $row['cheque_status'] ?? 'pending' : 'pending';
                 $sourcePayment = null;
 
                 if ($validateSourceCheques && $method === 'cheque' && $chequeType === 'party' && filled($row['party_cheque_payment_id'] ?? null)) {
@@ -661,6 +721,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
                     'method' => $method,
                     'reference' => (string) ($row['reference'] ?? ''),
                     'cheque_type' => $chequeType,
+                    'cheque_status' => $chequeStatus,
                     'cheque_no' => $method === 'cheque'
                         ? (string) ($sourcePayment?->cheque_no ?: ($row['cheque_no'] ?? $row['party_cheque_search'] ?? ''))
                         : '',
@@ -688,7 +749,8 @@ new #[Title('Record Wholesale Purchase')] class extends Component
     private function cashPaymentRowsTotal(array $paymentRows): float
     {
         return round((float) collect($paymentRows)
-            ->whereIn('method', ['cash', 'bank_transfer'])
+            ->filter(fn (array $row): bool => in_array($row['method'], ['cash', 'bank_transfer'], true)
+                || ($row['method'] === 'cheque' && ($row['cheque_status'] ?? 'pending') === 'passed'))
             ->sum('amount'), 2);
     }
 
@@ -696,6 +758,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
     {
         return round((float) collect($paymentRows)
             ->where('method', 'cheque')
+            ->filter(fn (array $row): bool => ($row['cheque_status'] ?? 'pending') === 'pending')
             ->sum('amount'), 2);
     }
 
@@ -704,7 +767,13 @@ new #[Title('Record Wholesale Purchase')] class extends Component
         return Payment::query()
             ->pendingCheque()
             ->where('paymentable_type', Sale::class)
-            ->whereDoesntHave('issuedPayments', fn ($query) => $query->where('cheque_status', 'pending'))
+            ->whereDoesntHave('issuedPayments', fn ($query) => $query
+                ->where('cheque_status', 'pending')
+                ->when($this->editingPurchaseId, fn ($query) => $query
+                    ->where(function ($query): void {
+                        $query->where('paymentable_type', '!=', Purchase::class)
+                            ->orWhere('paymentable_id', '!=', $this->editingPurchaseId);
+                    })))
             ->with('paymentable.customer')
             ->findOrFail($paymentId);
     }
@@ -714,19 +783,90 @@ new #[Title('Record Wholesale Purchase')] class extends Component
         return Payment::query()
             ->pendingCheque()
             ->where('paymentable_type', Sale::class)
-            ->whereDoesntHave('issuedPayments', fn ($query) => $query->where('cheque_status', 'pending'))
+            ->whereDoesntHave('issuedPayments', fn ($query) => $query
+                ->where('cheque_status', 'pending')
+                ->when($this->editingPurchaseId, fn ($query) => $query
+                    ->where(function ($query): void {
+                        $query->where('paymentable_type', '!=', Purchase::class)
+                            ->orWhere('paymentable_id', '!=', $this->editingPurchaseId);
+                    })))
             ->where(function ($query) use ($search): void {
                 $query->where('cheque_no', 'like', '%' . $search . '%')
                     ->orWhere('reference', 'like', '%' . $search . '%');
             })
             ->with('paymentable.customer');
     }
+
+    private function loadPurchaseForEditing(Purchase $purchase): void
+    {
+        $purchase->load(['items.product', 'payments.sourcePayment.paymentable.customer']);
+
+        $this->editingPurchaseId = $purchase->id;
+        $this->invoice_no = $purchase->invoice_no;
+        $this->date = $purchase->date->toDateString();
+        $this->supplier_id = $purchase->supplier_id;
+        $this->discount = (float) $purchase->discount;
+        $this->notes = (string) $purchase->notes;
+        $this->cart = $purchase->items
+            ->map(fn ($item): array => [
+                'product_id' => $item->product_id,
+                'name' => $item->product?->name ?? __('Deleted Product'),
+                'sku' => $item->product?->sku ?? '',
+                'quantity' => (int) $item->quantity,
+                'cost_price' => (float) $item->cost_price,
+                'selling_price' => (float) $item->selling_price,
+                'subtotal' => (float) $item->subtotal,
+            ])
+            ->values()
+            ->all();
+        $this->paymentRows = $purchase->payments
+            ->map(fn (Payment $payment): array => $this->paymentToRow($payment))
+            ->values()
+            ->all();
+
+        if ($this->paymentRows === []) {
+            $this->paymentRows = [$this->blankPaymentRow()];
+        }
+
+        $this->syncFirstRowToLegacyPayment();
+    }
+
+    private function paymentToRow(Payment $payment): array
+    {
+        $sourcePayment = $payment->sourcePayment;
+
+        return [
+            'amount' => (float) $payment->amount,
+            'method' => $payment->payment_method,
+            'reference' => (string) $payment->reference,
+            'cheque_type' => $payment->cheque_type ?: 'party',
+            'cheque_no' => (string) ($payment->cheque_no ?: $payment->reference),
+            'cheque_bank' => (string) $payment->cheque_bank,
+            'cheque_date' => $payment->cheque_date?->toDateString() ?? '',
+            'cheque_status' => $payment->cheque_status ?: 'pending',
+            'party_cheque_search' => (string) ($sourcePayment?->cheque_no ?: $payment->cheque_no ?: $payment->reference),
+            'party_cheque_payment_id' => $sourcePayment?->id,
+        ];
+    }
+
+    private function adjustProductStock(int $productId, int $quantityDelta): void
+    {
+        if ($quantityDelta > 0) {
+            Product::query()->whereKey($productId)->increment('stock_quantity', $quantityDelta);
+        } elseif ($quantityDelta < 0) {
+            Product::query()->whereKey($productId)->decrement('stock_quantity', abs($quantityDelta));
+        }
+    }
 }; ?>
 
 <div class="flex flex-col gap-6">
     <div class="flex flex-col gap-2">
-        <h1 class="font-display text-2xl font-bold tracking-tight text-zinc-950">{{ __('Wholesale Restock Invoice') }}</h1>
-        <p class="text-sm text-zinc-500">{{ __('Record incoming warehouse accessories shipments, register supplier invoices, adjust purchase values and automatically update warehouse stock count.') }}</p>
+        <h1 class="font-display text-2xl font-bold tracking-tight text-zinc-950">
+            {{ $this->isEditing ? __('Edit Wholesale Restock Invoice') : __('Wholesale Restock Invoice') }}
+        </h1>
+        <p class="text-sm text-zinc-500">
+            {{ $this->isEditing ? __('Update the supplier invoice, restock items, payment rows, and stock adjustments from the same purchase form.') : __('Record incoming warehouse accessories shipments, register supplier invoices, adjust purchase values and automatically update warehouse stock count.') }}
+        </p>
     </div>
 
     <!-- Main Creation Form Grid -->
@@ -827,7 +967,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
                             </div>
 
                             <!-- Cart row parameters inputs -->
-                            <div class="grid gap-3 grid-cols-3">
+                            <div class="grid gap-3 sm:grid-cols-3">
                                 <div>
                                     <label class="text-[10px] text-zinc-400 font-semibold tracking-wide uppercase">{{ __('Restock Qty') }}</label>
                                     <input
@@ -1028,7 +1168,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
 
                     <flux:button type="button" wire:click="savePurchase" variant="primary" class="w-full mt-2">
                         <flux:icon.check class="size-4 mr-1" />
-                        {{ __('Record Restock Invoice') }}
+                        {{ $this->isEditing ? __('Update Restock Invoice') : __('Record Restock Invoice') }}
                     </flux:button>
                 </div>
             </div>

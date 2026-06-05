@@ -192,31 +192,38 @@ new #[Title('Wholesale Purchase Logs')] class extends Component
                 wire:click="viewInvoice({{ $p->id }})"
                 wire:key="purchase-card-{{ $p->id }}"
             >
-                <div class="flex items-center gap-3">
-                    <div class="flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-600">
-                        <flux:icon.arrow-down-left class="size-5" />
-                    </div>
-                    <div>
-                        <div class="flex items-center gap-2">
-                            <span class="text-sm font-bold text-zinc-900">{{ $p->invoice_no }}</span>
-                            @if ($p->payment_status === 'paid')
-                                <flux:badge size="sm" color="emerald">Paid</flux:badge>
-                            @elseif ($p->payment_status === 'partial')
-                                <flux:badge size="sm" color="orange">Partial</flux:badge>
-                            @elseif ($p->payment_status === 'cheque_pending')
-                                <flux:badge size="sm" color="amber">Cheque Hold</flux:badge>
-                            @else
-                                <flux:badge size="sm" color="rose">Due</flux:badge>
-                            @endif
+                <div class="flex items-start justify-between gap-3 sm:items-center">
+                    <div class="flex items-center gap-3">
+                        <div class="flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-600">
+                            <flux:icon.arrow-down-left class="size-5" />
                         </div>
-                        <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
-                            <span>{{ $p->date->format('Y-m-d') }}</span>
-                            <span class="inline-block h-1 w-1 rounded-full bg-zinc-300"></span>
-                            <a href="{{ route('parties.suppliers', ['supplier_id' => $p->supplier_id]) }}" wire:navigate @click.stop class="font-semibold text-zinc-700 hover:text-violet-600 hover:underline">
-                                {{ $p->supplier?->name }}
-                            </a>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm font-bold text-zinc-900">{{ $p->invoice_no }}</span>
+                                @if ($p->payment_status === 'paid')
+                                    <flux:badge size="sm" color="emerald">Paid</flux:badge>
+                                @elseif ($p->payment_status === 'partial')
+                                    <flux:badge size="sm" color="orange">Partial</flux:badge>
+                                @elseif ($p->payment_status === 'cheque_pending')
+                                    <flux:badge size="sm" color="amber">Cheque Hold</flux:badge>
+                                @else
+                                    <flux:badge size="sm" color="rose">Due</flux:badge>
+                                @endif
+                            </div>
+                            <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+                                <span>{{ $p->date->format('Y-m-d') }}</span>
+                                <span class="inline-block h-1 w-1 rounded-full bg-zinc-300"></span>
+                                <a href="{{ route('parties.suppliers', ['supplier_id' => $p->supplier_id]) }}" wire:navigate @click.stop class="font-semibold text-zinc-700 hover:text-violet-600 hover:underline">
+                                    {{ $p->supplier?->name }}
+                                </a>
+                            </div>
                         </div>
                     </div>
+
+                    <flux:button href="{{ route('purchases.edit', $p) }}" wire:navigate @click.stop type="button" variant="ghost" size="sm" class="shrink-0">
+                        <flux:icon.pencil-square class="size-4 sm:mr-1" />
+                        <span class="hidden sm:inline">{{ __('Edit') }}</span>
+                    </flux:button>
                 </div>
 
                 <div class="flex items-center justify-between border-t border-zinc-100 pt-3 sm:border-t-0 sm:pt-0 sm:gap-6">
