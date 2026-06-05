@@ -202,6 +202,206 @@ test('purchase can be edited from the purchase form and recalculates stock payme
         ->and((float) $supplier->refresh()->due_balance)->toBe(50.0);
 });
 
+test('purchase cheque number must be unique against existing customer and supplier cheques', function () {
+    $user = User::factory()->create(['role' => 'super_admin', 'is_active' => true]);
+    $purchaseSupplier = Supplier::query()->create([
+        'name' => 'Purchase Supplier',
+        'opening_balance' => 0,
+        'due_balance' => 0,
+    ]);
+    $duplicateCustomer = Customer::query()->create([
+        'name' => 'Duplicate Customer',
+        'opening_balance' => 0,
+        'due_balance' => 0,
+    ]);
+    $duplicateSupplier = Supplier::query()->create([
+        'name' => 'Duplicate Supplier',
+        'opening_balance' => 0,
+        'due_balance' => 0,
+    ]);
+    $product = Product::factory()->create([
+        'name' => 'Duplicate Cheque Stock',
+        'cost_price' => 100,
+        'selling_price' => 150,
+    ]);
+
+    $duplicateCustomer->payments()->create([
+        'amount' => 1000,
+        'payment_method' => 'cheque',
+        'date' => today(),
+        'reference' => 'DUP-CUSTOMER-100',
+        'cheque_no' => 'DUP-CUSTOMER-100',
+        'cheque_date' => today()->addDay(),
+        'cheque_status' => 'pending',
+    ]);
+    $duplicateSupplier->payments()->create([
+        'amount' => 1000,
+        'payment_method' => 'cheque',
+        'date' => today(),
+        'reference' => 'DUP-SUPPLIER-100',
+        'cheque_no' => 'DUP-SUPPLIER-100',
+        'cheque_date' => today()->addDay(),
+        'cheque_status' => 'pending',
+    ]);
+
+    $customerDuplicate = Livewire::actingAs($user)
+        ->test('pages::purchases.create')
+        ->set('invoice_no', 'PUR-DUP-CUSTOMER-100')
+        ->set('supplier_id', $purchaseSupplier->id)
+        ->set('cart', [[
+            'product_id' => $product->id,
+            'name' => $product->name,
+            'sku' => $product->sku,
+            'quantity' => 1,
+            'cost_price' => 100,
+            'selling_price' => 150,
+            'subtotal' => 100,
+        ]])
+        ->set('paymentRows.0.amount', 100)
+        ->set('paymentRows.0.method', 'cheque')
+        ->set('paymentRows.0.cheque_type', 'own')
+        ->set('paymentRows.0.cheque_bank', 'BOC')
+        ->set('paymentRows.0.cheque_date', today()->addDay()->toDateString())
+        ->set('paymentRows.0.cheque_no', 'DUP-CUSTOMER-100')
+        ->call('savePurchase')
+        ->assertHasErrors(['paymentRows.0.cheque_no']);
+
+    expect($customerDuplicate->errors()->first('paymentRows.0.cheque_no'))->toContain('customer Duplicate Customer');
+
+    $supplierDuplicate = Livewire::actingAs($user)
+        ->test('pages::purchases.create')
+        ->set('invoice_no', 'PUR-DUP-SUPPLIER-100')
+        ->set('supplier_id', $purchaseSupplier->id)
+        ->set('cart', [[
+            'product_id' => $product->id,
+            'name' => $product->name,
+            'sku' => $product->sku,
+            'quantity' => 1,
+            'cost_price' => 100,
+            'selling_price' => 150,
+            'subtotal' => 100,
+        ]])
+        ->set('paymentRows.0.amount', 100)
+        ->set('paymentRows.0.method', 'cheque')
+        ->set('paymentRows.0.cheque_type', 'own')
+        ->set('paymentRows.0.cheque_bank', 'BOC')
+        ->set('paymentRows.0.cheque_date', today()->addDay()->toDateString())
+        ->set('paymentRows.0.cheque_no', 'DUP-SUPPLIER-100')
+        ->call('savePurchase')
+        ->assertHasErrors(['paymentRows.0.cheque_no']);
+
+    expect($supplierDuplicate->errors()->first('paymentRows.0.cheque_no'))->toContain('supplier Duplicate Supplier');
+});
+
+test('purchase cannot use the same manual cheque number twice in one invoice', function () {
+    $user = User::factory()->create(['role' => 'super_admin', 'is_active' => true]);
+    $supplier = Supplier::query()->create([
+        'name' => 'Same Invoice Supplier',
+        'opening_balance' => 0,
+        'due_balance' => 0,
+    ]);
+    $product = Product::factory()->create([
+        'name' => 'Same Invoice Cheque Stock',
+        'cost_price' => 100,
+        'selling_price' => 150,
+    ]);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::purchases.create')
+        ->set('invoice_no', 'PUR-DUP-ROWS-100')
+        ->set('supplier_id', $supplier->id)
+        ->set('cart', [[
+            'product_id' => $product->id,
+            'name' => $product->name,
+            'sku' => $product->sku,
+            'quantity' => 2,
+            'cost_price' => 100,
+            'selling_price' => 150,
+            'subtotal' => 200,
+        ]])
+        ->set('paymentRows.0.amount', 100)
+        ->set('paymentRows.0.method', 'cheque')
+        ->set('paymentRows.0.cheque_type', 'own')
+        ->set('paymentRows.0.cheque_no', 'SAME-ROW-100')
+        ->set('paymentRows.0.cheque_bank', 'BOC')
+        ->set('paymentRows.0.cheque_date', today()->addDay()->toDateString())
+        ->call('addPaymentRow', 'cheque')
+        ->set('paymentRows.1.amount', 100)
+        ->set('paymentRows.1.method', 'cheque')
+        ->set('paymentRows.1.cheque_type', 'own')
+        ->set('paymentRows.1.cheque_no', 'same-row-100')
+        ->set('paymentRows.1.cheque_bank', 'BOC')
+        ->set('paymentRows.1.cheque_date', today()->addDay()->toDateString())
+        ->call('savePurchase')
+        ->assertHasErrors(['paymentRows.1.cheque_no']);
+
+    expect($component->errors()->first('paymentRows.1.cheque_no'))->toContain('payment #1');
+});
+
+test('purchase cheque number shows duplicate supplier error while typing', function () {
+    $user = User::factory()->create(['role' => 'super_admin', 'is_active' => true]);
+    $existingSupplier = Supplier::query()->create([
+        'name' => 'Existing Cheque Supplier',
+        'opening_balance' => 0,
+        'due_balance' => 0,
+    ]);
+    $purchaseSupplier = Supplier::query()->create([
+        'name' => 'New Purchase Supplier',
+        'opening_balance' => 0,
+        'due_balance' => 0,
+    ]);
+    $product = Product::factory()->create([
+        'name' => 'Live Duplicate Cheque Stock',
+        'cost_price' => 740,
+        'selling_price' => 900,
+    ]);
+    $existingPurchase = Purchase::query()->create([
+        'supplier_id' => $existingSupplier->id,
+        'invoice_no' => 'PUR-LIVE-DUP-OLD',
+        'date' => today(),
+        'total_amount' => 30000,
+        'discount' => 0,
+        'tax' => 0,
+        'grand_total' => 30000,
+        'paid_amount' => 0,
+        'due_amount' => 0,
+        'payment_status' => 'cheque_pending',
+    ]);
+    $existingPurchase->payments()->create([
+        'amount' => 30000,
+        'payment_method' => 'cheque',
+        'date' => today(),
+        'reference' => '765499',
+        'cheque_no' => '765499',
+        'cheque_bank' => 'com',
+        'cheque_date' => today()->addDay(),
+        'cheque_status' => 'pending',
+        'cheque_type' => 'own',
+    ]);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::purchases.create')
+        ->set('supplier_id', $purchaseSupplier->id)
+        ->set('cart', [[
+            'product_id' => $product->id,
+            'name' => $product->name,
+            'sku' => $product->sku,
+            'quantity' => 5,
+            'cost_price' => 740,
+            'selling_price' => 900,
+            'subtotal' => 3700,
+        ]])
+        ->set('paymentRows.0.amount', 3700)
+        ->set('paymentRows.0.method', 'cheque')
+        ->set('paymentRows.0.cheque_type', 'own')
+        ->set('paymentRows.0.cheque_bank', 'com')
+        ->set('paymentRows.0.cheque_date', today()->toDateString())
+        ->set('paymentRows.0.cheque_no', '765499')
+        ->assertHasErrors(['paymentRows.0.cheque_no']);
+
+    expect($component->errors()->first('paymentRows.0.cheque_no'))->toContain('supplier Existing Cheque Supplier');
+});
+
 test('purchase can be recorded with a selected party cheque hold', function () {
     $user = User::factory()->create(['role' => 'super_admin', 'is_active' => true]);
     $supplier = Supplier::query()->create([
@@ -534,63 +734,33 @@ test('purchase can be paid with cash saved party cheque manual party cheque and 
             'selling_price' => 125000,
             'subtotal' => 100000,
         ]])
-        ->set('paymentRows', [
-            [
-                'amount' => 20000,
-                'method' => 'cash',
-                'reference' => 'Cash 20k',
-                'cheque_type' => 'party',
-                'cheque_no' => '',
-                'cheque_bank' => '',
-                'cheque_date' => '',
-                'party_cheque_search' => '',
-                'party_cheque_payment_id' => null,
-            ],
-            [
-                'amount' => 30000,
-                'method' => 'cheque',
-                'reference' => '',
-                'cheque_type' => 'party',
-                'cheque_no' => '',
-                'cheque_bank' => '',
-                'cheque_date' => '',
-                'party_cheque_search' => '76820',
-                'party_cheque_payment_id' => $savedPartyCheque->id,
-            ],
-            [
-                'amount' => 10000,
-                'method' => 'cheque',
-                'reference' => '',
-                'cheque_type' => 'own',
-                'cheque_no' => '765413',
-                'cheque_bank' => 'BOC',
-                'cheque_date' => today()->addDays(4)->toDateString(),
-                'party_cheque_search' => '',
-                'party_cheque_payment_id' => null,
-            ],
-            [
-                'amount' => 30000,
-                'method' => 'cheque',
-                'reference' => '',
-                'cheque_type' => 'party',
-                'cheque_no' => '786546',
-                'cheque_bank' => 'Commercial Bank',
-                'cheque_date' => today()->addDays(3)->toDateString(),
-                'party_cheque_search' => '786546',
-                'party_cheque_payment_id' => null,
-            ],
-            [
-                'amount' => 10000,
-                'method' => 'cheque',
-                'reference' => '',
-                'cheque_type' => 'own',
-                'cheque_no' => 'OWN-10000',
-                'cheque_bank' => 'Peoples Bank',
-                'cheque_date' => today()->addDays(5)->toDateString(),
-                'party_cheque_search' => '',
-                'party_cheque_payment_id' => null,
-            ],
-        ])
+        ->set('paymentRows.0.amount', 20000)
+        ->set('paymentRows.0.method', 'cash')
+        ->set('paymentRows.0.reference', 'Cash 20k')
+        ->call('addPaymentRow', 'cheque')
+        ->call('selectPaymentRowPartyCheque', 1, $savedPartyCheque->id)
+        ->call('addPaymentRow', 'cheque')
+        ->set('paymentRows.2.amount', 10000)
+        ->set('paymentRows.2.method', 'cheque')
+        ->set('paymentRows.2.cheque_type', 'own')
+        ->set('paymentRows.2.cheque_no', '765413')
+        ->set('paymentRows.2.cheque_bank', 'BOC')
+        ->set('paymentRows.2.cheque_date', today()->addDays(4)->toDateString())
+        ->call('addPaymentRow', 'cheque')
+        ->set('paymentRows.3.amount', 30000)
+        ->set('paymentRows.3.method', 'cheque')
+        ->set('paymentRows.3.cheque_type', 'party')
+        ->set('paymentRows.3.cheque_no', '786546')
+        ->set('paymentRows.3.cheque_bank', 'Commercial Bank')
+        ->set('paymentRows.3.cheque_date', today()->addDays(3)->toDateString())
+        ->set('paymentRows.3.party_cheque_search', '786546')
+        ->call('addPaymentRow', 'cheque')
+        ->set('paymentRows.4.amount', 10000)
+        ->set('paymentRows.4.method', 'cheque')
+        ->set('paymentRows.4.cheque_type', 'own')
+        ->set('paymentRows.4.cheque_no', 'OWN-10000')
+        ->set('paymentRows.4.cheque_bank', 'Peoples Bank')
+        ->set('paymentRows.4.cheque_date', today()->addDays(5)->toDateString())
         ->call('savePurchase')
         ->assertHasNoErrors();
 

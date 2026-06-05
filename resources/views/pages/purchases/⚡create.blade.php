@@ -2,6 +2,7 @@
 
 use App\Models\Brand;
 use App\Models\Category;
+use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\Payment;
@@ -287,6 +288,15 @@ new #[Title('Record Wholesale Purchase')] class extends Component
         $this->syncFirstRowToLegacyPayment();
     }
 
+    public function updatedPaymentRows(mixed $value, string $key): void
+    {
+        if (! preg_match('/^(\d+)\.(cheque_no|method|cheque_type|party_cheque_payment_id)$/', $key, $matches)) {
+            return;
+        }
+
+        $this->validatePaymentRowChequeNumber((int) $matches[1]);
+    }
+
     public function selectPaymentRowPartyCheque(int $index, int $paymentId): void
     {
         if (! isset($this->paymentRows[$index])) {
@@ -382,6 +392,10 @@ new #[Title('Record Wholesale Purchase')] class extends Component
             if ($paymentRow['cheque_type'] === 'party' && ! $paymentRow['source_payment_id'] && blank($paymentRow['cheque_no'])) {
                 $this->addError("paymentRows.{$index}.cheque_no", __('Party cheque number is required when it is not selected from saved customer cheques.'));
 
+                return;
+            }
+
+            if (! $this->ensureUniqueChequeNumber($index, $paymentRow, $paymentRows)) {
                 return;
             }
         }
@@ -778,6 +792,138 @@ new #[Title('Record Wholesale Purchase')] class extends Component
             ->findOrFail($paymentId);
     }
 
+    private function ensureUniqueChequeNumber(int $index, array $paymentRow, array $paymentRows): bool
+    {
+        if ($paymentRow['method'] !== 'cheque' || $paymentRow['source_payment_id']) {
+            return true;
+        }
+
+        $chequeNo = trim((string) $paymentRow['cheque_no']);
+        if ($chequeNo === '') {
+            return true;
+        }
+
+        $duplicateRowNumber = collect($paymentRows)
+            ->take($index)
+            ->filter(fn (array $row): bool => $row['method'] === 'cheque'
+                && ! $row['source_payment_id']
+                && strcasecmp(trim((string) $row['cheque_no']), $chequeNo) === 0)
+            ->keys()
+            ->first();
+
+        if ($duplicateRowNumber !== null) {
+            $this->addError(
+                "paymentRows.{$index}.cheque_no",
+                __('This cheque number is already used in payment #:number.', ['number' => $duplicateRowNumber + 1])
+            );
+
+            return false;
+        }
+
+        $duplicatePayment = $this->findDuplicateChequePayment($chequeNo);
+        if (! $duplicatePayment) {
+            return true;
+        }
+
+        $this->addError(
+            "paymentRows.{$index}.cheque_no",
+            __('This cheque number already exists for :owner.', ['owner' => $this->chequeOwnerDescription($duplicatePayment)])
+        );
+
+        return false;
+    }
+
+    private function validatePaymentRowChequeNumber(int $index): bool
+    {
+        $errorKey = "paymentRows.{$index}.cheque_no";
+        $this->resetErrorBag($errorKey);
+
+        if (! isset($this->paymentRows[$index])) {
+            return true;
+        }
+
+        $paymentRow = $this->paymentRows[$index];
+        if (($paymentRow['method'] ?? 'cash') !== 'cheque' || filled($paymentRow['party_cheque_payment_id'] ?? null)) {
+            return true;
+        }
+
+        $chequeNo = trim((string) ($paymentRow['cheque_no'] ?? ''));
+        if ($chequeNo === '') {
+            return true;
+        }
+
+        $duplicateRowNumber = collect($this->paymentRows)
+            ->except($index)
+            ->filter(fn (array $row): bool => ($row['method'] ?? 'cash') === 'cheque'
+                && blank($row['party_cheque_payment_id'] ?? null)
+                && strcasecmp(trim((string) ($row['cheque_no'] ?? '')), $chequeNo) === 0)
+            ->keys()
+            ->first();
+
+        if ($duplicateRowNumber !== null) {
+            $this->addError(
+                $errorKey,
+                __('This cheque number is already used in payment #:number.', ['number' => $duplicateRowNumber + 1])
+            );
+
+            return false;
+        }
+
+        $duplicatePayment = $this->findDuplicateChequePayment($chequeNo);
+        if (! $duplicatePayment) {
+            return true;
+        }
+
+        $this->addError(
+            $errorKey,
+            __('This cheque number already exists for :owner.', ['owner' => $this->chequeOwnerDescription($duplicatePayment)])
+        );
+
+        return false;
+    }
+
+    private function findDuplicateChequePayment(string $chequeNo): ?Payment
+    {
+        return Payment::query()
+            ->where('payment_method', 'cheque')
+            ->whereNotNull('cheque_no')
+            ->whereRaw('LOWER(cheque_no) = ?', [strtolower($chequeNo)])
+            ->when($this->editingPurchaseId, fn ($query) => $query
+                ->where(function ($query): void {
+                    $query->where('paymentable_type', '!=', Purchase::class)
+                        ->orWhere('paymentable_id', '!=', $this->editingPurchaseId);
+                }))
+            ->with('paymentable')
+            ->first();
+    }
+
+    private function chequeOwnerDescription(Payment $payment): string
+    {
+        $paymentable = $payment->paymentable;
+
+        if ($paymentable instanceof Sale) {
+            $paymentable->loadMissing('customer');
+
+            return __('customer :name', ['name' => $paymentable->customer?->name ?? __('Unknown Customer')]);
+        }
+
+        if ($paymentable instanceof Customer) {
+            return __('customer :name', ['name' => $paymentable->name]);
+        }
+
+        if ($paymentable instanceof Purchase) {
+            $paymentable->loadMissing('supplier');
+
+            return __('supplier :name', ['name' => $paymentable->supplier?->name ?? __('Unknown Supplier')]);
+        }
+
+        if ($paymentable instanceof Supplier) {
+            return __('supplier :name', ['name' => $paymentable->name]);
+        }
+
+        return __('another payment record');
+    }
+
     private function availablePartyChequeQuery(string $search)
     {
         return Payment::query()
@@ -1124,7 +1270,9 @@ new #[Title('Record Wholesale Purchase')] class extends Component
                                             </div>
                                         @else
                                             <div class="grid gap-3 sm:grid-cols-2">
-                                                <flux:input wire:model.live="paymentRows.{{ $index }}.cheque_no" :label="($paymentRow['cheque_type'] ?? 'party') === 'own' ? __('Own Cheque No') : __('Party Cheque No')" placeholder="Cheque number" />
+                                                <div>
+                                                    <flux:input wire:model.live.debounce.300ms="paymentRows.{{ $index }}.cheque_no" :label="($paymentRow['cheque_type'] ?? 'party') === 'own' ? __('Own Cheque No') : __('Party Cheque No')" placeholder="Cheque number" />
+                                                </div>
                                                 <flux:input wire:model.live="paymentRows.{{ $index }}.cheque_bank" :label="__('Bank')" placeholder="Bank name" />
                                             </div>
                                             <flux:input wire:model.live="paymentRows.{{ $index }}.cheque_date" :label="__('Cheque Date')" type="date" />
