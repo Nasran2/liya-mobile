@@ -1088,11 +1088,11 @@ new #[Title('POS Terminal')] class extends Component
                 wrapper.style.left = '0';
                 wrapper.style.top = '0';
                 wrapper.style.width = isA4 ? '794px' : '300px';
-                wrapper.style.height = isA4 ? '1123px' : 'auto';
+                wrapper.style.minHeight = isA4 ? '1123px' : 'auto';
                 wrapper.style.zIndex = '-99999';
                 wrapper.style.pointerEvents = 'none';
                 wrapper.style.background = '#ffffff';
-                wrapper.style.overflow = 'hidden';
+                wrapper.style.overflow = 'visible';
 
                 const clone = originalEl.cloneNode(true);
                 clone.style.display = 'block';
@@ -1101,10 +1101,17 @@ new #[Title('POS Terminal')] class extends Component
                 clone.classList.remove('print:block');
                 clone.style.position = 'static';
                 clone.style.width = isA4 ? '794px' : '100%';
-                clone.style.height = isA4 ? '1123px' : 'auto';
+                clone.style.height = 'auto';
+                clone.style.minHeight = isA4 ? '1123px' : 'auto';
                 clone.style.padding = isA4 ? '0' : '12px';
                 clone.style.background = '#ffffff';
                 clone.style.color = '#000000';
+
+                if (isA4 && clone.firstElementChild) {
+                    clone.firstElementChild.style.height = 'auto';
+                    clone.firstElementChild.style.minHeight = '1123px';
+                    clone.firstElementChild.style.overflow = 'visible';
+                }
 
                 wrapper.appendChild(clone);
                 document.body.appendChild(wrapper);
@@ -1128,7 +1135,20 @@ new #[Title('POS Terminal')] class extends Component
                     format: isA4 ? 'a4' : [80, imgHeight]
                 });
 
-                pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
+                const pageHeight = pdf.internal.pageSize.getHeight();
+                let remainingHeight = imgHeight;
+                let imageTop = 0;
+
+                pdf.addImage(imgData, 'JPEG', 0, imageTop, imgWidth, imgHeight);
+                remainingHeight -= pageHeight;
+
+                while (remainingHeight > 1) {
+                    imageTop -= pageHeight;
+                    pdf.addPage();
+                    pdf.addImage(imgData, 'JPEG', 0, imageTop, imgWidth, imgHeight);
+                    remainingHeight -= pageHeight;
+                }
+
                 const blob = pdf.output('blob');
 
                 this.sharePdfFile = new File([blob], `${invoiceNo}.pdf`, { type: 'application/pdf' });

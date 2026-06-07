@@ -449,7 +449,7 @@ new #[Title('Sales Receipts')] class extends Component
 
             if (isA4) {
                 wrapper.style.width = '794px';
-                wrapper.style.height = '1123px';
+                wrapper.style.minHeight = '1123px';
             } else {
                 wrapper.style.width = '300px';
             }
@@ -463,9 +463,17 @@ new #[Title('Sales Receipts')] class extends Component
 
             if (isA4) {
                 clonedEl.style.width = '794px';
-                clonedEl.style.height = '1123px';
+                clonedEl.style.height = 'auto';
+                clonedEl.style.minHeight = '1123px';
                 clonedEl.style.margin = '0';
                 clonedEl.style.padding = '0';
+
+                const invoicePage = clonedEl.firstElementChild;
+                if (invoicePage) {
+                    invoicePage.style.height = 'auto';
+                    invoicePage.style.minHeight = '1123px';
+                    invoicePage.style.overflow = 'visible';
+                }
             }
 
             wrapper.appendChild(clonedEl);
@@ -478,7 +486,7 @@ new #[Title('Sales Receipts')] class extends Component
                 logging: false,
                 windowWidth: isA4 ? 794 : 300,
                 width: isA4 ? 794 : 300,
-                height: isA4 ? 1123 : clonedEl.offsetHeight
+                height: isA4 ? clonedEl.scrollHeight : clonedEl.offsetHeight
             });
 
             document.body.removeChild(wrapper);
@@ -491,9 +499,20 @@ new #[Title('Sales Receipts')] class extends Component
             });
 
             const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pageHeight = pdf.internal.pageSize.getHeight();
             const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+            let remainingHeight = pdfHeight;
+            let imageTop = 0;
 
-            pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+            pdf.addImage(imgData, 'JPEG', 0, imageTop, pdfWidth, pdfHeight);
+            remainingHeight -= pageHeight;
+
+            while (remainingHeight > 1) {
+                imageTop -= pageHeight;
+                pdf.addPage();
+                pdf.addImage(imgData, 'JPEG', 0, imageTop, pdfWidth, pdfHeight);
+                remainingHeight -= pageHeight;
+            }
 
             const pdfBlob = pdf.output('blob');
             this.sharePdfFile = new File([pdfBlob], `${invoiceNo}.pdf`, { type: 'application/pdf' });

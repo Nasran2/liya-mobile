@@ -36,9 +36,9 @@
         @media print {
             html, body {
                 width: 210mm !important;
-                height: 297mm !important;
+                min-height: 297mm !important;
                 margin: 0 !important;
-                overflow: hidden !important;
+                overflow: visible !important;
                 background: white !important;
             }
 
@@ -55,13 +55,16 @@
             #a4-invoice-template {
                 display: block !important;
                 position: absolute !important;
-                inset: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                top: 0 !important;
                 width: 100% !important;
-                height: 100% !important;
+                height: auto !important;
+                min-height: 100% !important;
                 margin: 0 auto !important;
                 padding: 0 !important;
                 background: white !important;
-                overflow: hidden !important;
+                overflow: visible !important;
                 z-index: 9999999 !important;
             }
 
@@ -72,7 +75,7 @@
         }
     </style>
 
-    <div class="relative mx-auto flex h-[281mm] w-[194mm] flex-col overflow-hidden bg-white p-[8mm] text-slate-800">
+    <div class="relative mx-auto flex min-h-[281mm] w-[194mm] flex-col overflow-visible bg-white p-[8mm] text-slate-800">
         <!-- Top accent gradient line -->
         <div class="absolute left-0 top-0 h-1.5 w-full bg-gradient-to-r from-violet-600 via-indigo-500 to-cyan-500"></div>
 
