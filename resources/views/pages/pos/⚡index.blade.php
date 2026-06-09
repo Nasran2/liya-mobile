@@ -739,6 +739,7 @@ new #[Title('POS Terminal')] class extends Component
                         ->orWhere('email', 'like', '%' . $search . '%');
                 });
             })
+            ->orderByRaw('CASE WHEN due_balance > 0 THEN 0 ELSE 1 END')
             ->orderBy('name')
             ->limit(25)
             ->get();
@@ -1302,6 +1303,38 @@ new #[Title('POS Terminal')] class extends Component
                 <button type="button" wire:click="resetCart" class="rounded-full px-3 py-1 text-xs font-black text-zinc-400 transition hover:bg-zinc-50 hover:text-zinc-700">Clear</button>
             </div>
 
+            <div class="mt-4 rounded-3xl border border-violet-100 bg-violet-50/50 p-3">
+                <div class="mb-2 flex items-center justify-between gap-3">
+                    <span class="text-[10px] font-black uppercase tracking-widest text-violet-500">{{ __('Customer') }}</span>
+                    <button type="button" wire:click="openQuickCustomerModal" class="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-violet-700 ring-1 ring-violet-100 transition active:scale-95">
+                        <flux:icon.plus class="size-3" />
+                        {{ __('New') }}
+                    </button>
+                </div>
+
+                <flux:input wire:model.live.debounce.250ms="customerSearch" placeholder="Search customer..." />
+
+                <div class="mt-2">
+                    <flux:select wire:model.live="customer_id" required>
+                        <option value="">{{ __('-- Select the customer --') }}</option>
+                        @foreach ($this->customers as $cust)
+                            <option value="{{ $cust->id }}">{{ $cust->name }} ({{ $cust->phone ?: 'Walk-in' }})</option>
+                        @endforeach
+                    </flux:select>
+                </div>
+
+                <div class="mt-2 flex items-center justify-between gap-3 rounded-2xl bg-white px-3 py-2 text-xs">
+                    <span class="font-bold text-zinc-500">{{ __('Previous Due') }}</span>
+                    <span @class([
+                        'font-black',
+                        'text-rose-600' => (float) ($this->selectedCustomer?->due_balance ?? 0) > 0,
+                        'text-emerald-600' => (float) ($this->selectedCustomer?->due_balance ?? 0) <= 0,
+                    ])>
+                        Rs {{ number_format((float) ($this->selectedCustomer?->due_balance ?? 0), 2) }}
+                    </span>
+                </div>
+            </div>
+
             <!-- Cart rows -->
             <div class="flex-1 overflow-y-auto scrollbar-none py-4 flex flex-col gap-3">
                 @forelse ($cart as $index => $item)
@@ -1461,6 +1494,38 @@ new #[Title('POS Terminal')] class extends Component
                 <flux:button variant="ghost" size="sm" @click="mobCartOpen = false">
                     <flux:icon.x-mark class="size-4" />
                 </flux:button>
+            </div>
+
+            <div class="border-b border-zinc-100 bg-white p-4">
+                <div class="mb-2 flex items-center justify-between gap-3">
+                    <span class="text-[10px] font-black uppercase tracking-widest text-violet-500">{{ __('Customer') }}</span>
+                    <button type="button" wire:click="openQuickCustomerModal" class="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 text-[10px] font-black text-violet-700 ring-1 ring-violet-100 transition active:scale-95">
+                        <flux:icon.plus class="size-3" />
+                        {{ __('New') }}
+                    </button>
+                </div>
+
+                <flux:input wire:model.live.debounce.250ms="customerSearch" placeholder="Search customer..." />
+
+                <div class="mt-2">
+                    <flux:select wire:model.live="customer_id" required>
+                        <option value="">{{ __('-- Select the customer --') }}</option>
+                        @foreach ($this->customers as $cust)
+                            <option value="{{ $cust->id }}">{{ $cust->name }} ({{ $cust->phone ?: 'Walk-in' }})</option>
+                        @endforeach
+                    </flux:select>
+                </div>
+
+                <div class="mt-2 flex items-center justify-between gap-3 rounded-2xl bg-zinc-50 px-3 py-2 text-xs">
+                    <span class="font-bold text-zinc-500">{{ __('Previous Due') }}</span>
+                    <span @class([
+                        'font-black',
+                        'text-rose-600' => (float) ($this->selectedCustomer?->due_balance ?? 0) > 0,
+                        'text-emerald-600' => (float) ($this->selectedCustomer?->due_balance ?? 0) <= 0,
+                    ])>
+                        Rs {{ number_format((float) ($this->selectedCustomer?->due_balance ?? 0), 2) }}
+                    </span>
+                </div>
             </div>
 
             <!-- Cart list scroll -->

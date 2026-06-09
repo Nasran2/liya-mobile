@@ -182,6 +182,35 @@ test('checkout customer select starts empty and requires a real selection', func
         ->assertHasErrors(['customer_id']);
 });
 
+test('cart panels can select a customer before checkout and show previous due first', function () {
+    $user = User::factory()->create([
+        'role' => 'super_admin',
+        'is_active' => true,
+    ]);
+    $dueCustomer = Customer::query()->create([
+        'name' => 'Zed Due Customer',
+        'phone' => '0770000123',
+        'opening_balance' => 475.25,
+        'due_balance' => 475.25,
+    ]);
+    Customer::query()->create([
+        'name' => 'Alpha Clear Customer',
+        'phone' => '0770000124',
+        'opening_balance' => 0,
+        'due_balance' => 0,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::pos.index')
+        ->assertSee('Previous Due')
+        ->assertSeeInOrder(['Zed Due Customer', 'Alpha Clear Customer'])
+        ->set('customer_id', $dueCustomer->id)
+        ->assertSee('Rs 475.25')
+        ->set('checkoutOpen', true)
+        ->assertSet('customer_id', $dueCustomer->id)
+        ->assertSee('Selected: Zed Due Customer');
+});
+
 test('cheque checkout creates a pending hold payment', function () {
     $user = User::factory()->create([
         'role' => 'super_admin',
