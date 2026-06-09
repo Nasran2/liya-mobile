@@ -202,6 +202,7 @@ test('cart panels can select a customer before checkout and show previous due fi
 
     Livewire::actingAs($user)
         ->test('pages::pos.index')
+        ->assertSee('Sale Customer')
         ->assertSee('Previous Due')
         ->assertSeeInOrder(['Zed Due Customer', 'Alpha Clear Customer'])
         ->set('customer_id', $dueCustomer->id)

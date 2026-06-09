@@ -1263,6 +1263,38 @@ new #[Title('POS Terminal')] class extends Component
 
 
 
+    <div class="mt-4 rounded-[1.75rem] border border-violet-100 bg-white p-4 shadow-[0_16px_45px_rgba(15,23,42,0.08)] lg:hidden">
+        <div class="mb-2 flex items-center justify-between gap-3">
+            <span class="text-[10px] font-black uppercase tracking-widest text-violet-500">{{ __('Sale Customer') }}</span>
+            <button type="button" wire:click="openQuickCustomerModal" class="inline-flex h-9 items-center gap-1.5 rounded-full bg-violet-50 px-3 text-xs font-black text-violet-700 ring-1 ring-violet-100 transition active:scale-95">
+                <flux:icon.plus class="size-4" />
+                {{ __('New') }}
+            </button>
+        </div>
+
+        <div class="grid gap-2">
+            <flux:input wire:model.live.debounce.250ms="customerSearch" placeholder="Search customer..." />
+
+            <flux:select wire:model.live="customer_id" required>
+                <option value="">{{ __('-- Select the customer --') }}</option>
+                @foreach ($this->customers as $cust)
+                    <option value="{{ $cust->id }}">{{ $cust->name }} ({{ $cust->phone ?: 'Walk-in' }})</option>
+                @endforeach
+            </flux:select>
+        </div>
+
+        <div class="mt-2 flex items-center justify-between gap-3 rounded-2xl bg-zinc-50 px-3 py-2 text-xs">
+            <span class="font-bold text-zinc-500">{{ __('Previous Due') }}</span>
+            <span @class([
+                'font-black',
+                'text-rose-600' => (float) ($this->selectedCustomer?->due_balance ?? 0) > 0,
+                'text-emerald-600' => (float) ($this->selectedCustomer?->due_balance ?? 0) <= 0,
+            ])>
+                Rs {{ number_format((float) ($this->selectedCustomer?->due_balance ?? 0), 2) }}
+            </span>
+        </div>
+    </div>
+
     <div class="mt-4 mb-3 grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_390px]">
         <div class="hidden lg:block"></div>
 
