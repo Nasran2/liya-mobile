@@ -55,6 +55,7 @@ new #[Title('POS Terminal')] class extends Component
     public bool $customerCreateOpen = false;
     public ?int $completedSaleId = null;
     public ?int $editingCartIndex = null;
+    public bool $editingNewCartItem = false;
     public string $editCartName = '';
     public int $editQuantity = 1;
     public $editUnitPrice = 0.00;
@@ -241,6 +242,43 @@ new #[Title('POS Terminal')] class extends Component
         $this->dispatch('play-beep');
     }
 
+    public function openProductCartEditor(int $productId): void
+    {
+        $product = $this->findSellableProduct($productId);
+
+        if ($product->stock_quantity <= 0 && ! $this->allowNegativeStock) {
+            Flux::toast(variant: 'danger', text: __('Out of stock! Negative stock sales disabled.'));
+            return;
+        }
+
+        foreach ($this->cart as $index => $item) {
+            if ($item['product_id'] === $product->id) {
+                $this->editingNewCartItem = false;
+                $this->openCartItemEditor($index);
+                return;
+            }
+        }
+
+        $this->cart[] = [
+            'product_id' => $product->id,
+            'name' => $product->name,
+            'sku' => $product->sku,
+            'cost_price' => (float) $product->cost_price,
+            'selling_price' => (float) $product->selling_price,
+            'retail_price' => (float) $product->selling_price,
+            'wholesale_price' => (float) ($product->wholesale_price ?? $product->selling_price),
+            'price_type' => 'retail',
+            'quantity' => 1,
+            'discount_type' => 'fixed',
+            'discount_value' => 0.00,
+            'subtotal' => (float) $product->selling_price,
+            'stock' => $product->stock_quantity,
+        ];
+
+        $this->editingNewCartItem = true;
+        $this->openCartItemEditor(array_key_last($this->cart));
+    }
+
     public function updateCartQty(int $index, int|string|null $qty): void
     {
         if (isset($this->cart[$index])) {
@@ -297,6 +335,14 @@ new #[Title('POS Terminal')] class extends Component
 
     public function closeCartItemEditor(): void
     {
+        if ($this->editingNewCartItem && $this->editingCartIndex !== null && isset($this->cart[$this->editingCartIndex])) {
+            unset($this->cart[$this->editingCartIndex]);
+            $this->cart = array_values($this->cart);
+            $this->paid_amount = $this->cartTotal;
+            $this->syncLegacyPaymentToFirstRowWhenOnlyOneRow();
+        }
+
+        $this->editingNewCartItem = false;
         $this->reset('cartItemEditorOpen', 'editingCartIndex', 'editCartName', 'editQuantity', 'editUnitPrice', 'editDiscountValue');
         $this->editDiscountType = 'fixed';
     }
@@ -342,7 +388,9 @@ new #[Title('POS Terminal')] class extends Component
 
         $this->paid_amount = $this->cartTotal;
         $this->syncLegacyPaymentToFirstRowWhenOnlyOneRow();
+        $this->editingNewCartItem = false;
         $this->closeCartItemEditor();
+        $this->dispatch('play-beep');
     }
 
     public function saveCartItemEditorFromPayload(int $quantity, float $unitPrice, string $discountType, float $discountValue): void

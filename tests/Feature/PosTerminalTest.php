@@ -141,6 +141,67 @@ test('cashier can edit cart item quantity price and discount', function () {
         ->assertSee('Rs 2,160.00');
 });
 
+test('product plus opens the cart item editor before saving the item', function () {
+    $user = User::factory()->create([
+        'role' => 'super_admin',
+        'is_active' => true,
+    ]);
+    $product = Product::factory()->create([
+        'name' => 'Popup Edit Product',
+        'sku' => 'POPUP-EDIT',
+        'cost_price' => 500,
+        'selling_price' => 1500,
+        'stock_quantity' => 8,
+        'is_active' => true,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::pos.index')
+        ->call('openProductCartEditor', $product->id)
+        ->assertSet('cartItemEditorOpen', true)
+        ->assertSet('editingNewCartItem', true)
+        ->assertSet('editCartName', 'Popup Edit Product')
+        ->set('editQuantity', 3)
+        ->set('editUnitPrice', 1200)
+        ->set('editDiscountType', 'percentage')
+        ->set('editDiscountValue', 10)
+        ->call('saveCartItemEditor')
+        ->assertSet('cartItemEditorOpen', false)
+        ->assertSet('editingNewCartItem', false)
+        ->assertSet('cart.0.product_id', $product->id)
+        ->assertSet('cart.0.quantity', 3)
+        ->assertSet('cart.0.selling_price', 1200.00)
+        ->assertSet('cart.0.discount_type', 'percentage')
+        ->assertSet('cart.0.discount_value', 10.00)
+        ->assertSet('cart.0.subtotal', 3240.00)
+        ->assertSet('paid_amount', 3240.00);
+});
+
+test('cancelling a new product editor does not keep the draft cart item', function () {
+    $user = User::factory()->create([
+        'role' => 'super_admin',
+        'is_active' => true,
+    ]);
+    $product = Product::factory()->create([
+        'name' => 'Cancel Draft Product',
+        'sku' => 'CANCEL-DRAFT',
+        'cost_price' => 200,
+        'selling_price' => 900,
+        'stock_quantity' => 4,
+        'is_active' => true,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::pos.index')
+        ->call('openProductCartEditor', $product->id)
+        ->assertSet('cartItemEditorOpen', true)
+        ->assertSet('cart.0.product_id', $product->id)
+        ->call('closeCartItemEditor')
+        ->assertSet('cartItemEditorOpen', false)
+        ->assertSet('editingNewCartItem', false)
+        ->assertSet('cart', []);
+});
+
 test('cashier can add a customer from the pos checkout', function () {
     $user = User::factory()->create([
         'role' => 'super_admin',

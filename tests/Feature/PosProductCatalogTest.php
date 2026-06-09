@@ -9,6 +9,7 @@ test('product catalog renders responsive cards and filters independently', funct
     Livewire::test('pos.product-catalog')
         ->assertSee('grid-cols-2', false)
         ->assertSee('sm:grid-cols-3', false)
+        ->assertSee('openProductCartEditor', false)
         ->assertSee('AirPods Pro Clear Case')
         ->set('search', 'AirPods')
         ->assertSee('AirPods Pro Clear Case')

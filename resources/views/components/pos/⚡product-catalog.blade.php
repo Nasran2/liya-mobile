@@ -193,9 +193,9 @@ new class extends Component
             @forelse ($products->take($productLimit) as $p)
                 <div
                     class="group relative flex min-h-[9.25rem] cursor-pointer select-none flex-col justify-between overflow-hidden rounded-[1.25rem] border border-zinc-200 bg-white p-2 shadow-[0_12px_28px_rgba(15,23,42,0.05)] transition data-loading:pointer-events-none data-loading:opacity-70 hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-[0_24px_60px_rgba(124,58,237,0.12)] sm:min-h-44 sm:rounded-[1.75rem] sm:p-4 sm:shadow-[0_18px_45px_rgba(15,23,42,0.06)]"
-                    wire:click.throttle.350ms="$parent.addToCart({{ $p->id }})"
+                    wire:click.throttle.350ms="$parent.openProductCartEditor({{ $p->id }})"
                     wire:loading.attr="aria-busy"
-                    wire:target="$parent.addToCart({{ $p->id }})"
+                    wire:target="$parent.openProductCartEditor({{ $p->id }})"
                     wire:key="product-pos-{{ $p->id }}"
                 >
                     @if ($p->stock_quantity <= 0)
