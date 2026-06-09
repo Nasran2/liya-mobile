@@ -117,6 +117,7 @@
                     <thead>
                         <tr class="border-b-2 border-slate-200 text-xs font-bold uppercase tracking-wide text-slate-500">
                             <th class="w-24 py-3 text-center">{{ __('Quantity') }}</th>
+                            <th class="w-28 px-3 py-3 text-center">{{ __('Type') }}</th>
                             <th class="w-36 px-3 py-3">{{ __('Item #') }}</th>
                             <th class="px-3 py-3">{{ __('Description') }}</th>
                             <th class="w-36 px-3 py-3 text-right">{{ __('Unit Price') }}</th>
@@ -125,12 +126,38 @@
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         @foreach ($sale->items as $item)
-                            <tr>
-                                <td class="py-4 text-center font-black text-violet-600">{{ $item->quantity }}</td>
-                                <td class="px-3 py-4 font-mono text-xs text-slate-500">{{ $item->product?->sku ?: $item->product_id }}</td>
-                                <td class="px-3 py-4 font-semibold">{{ $item->product?->name ?? __('Item') }}</td>
-                                <td class="px-3 py-4 text-right text-slate-600">{{ $currency }} {{ number_format((float) $item->selling_price, 2) }}</td>
-                                <td class="py-4 text-right font-bold">{{ $currency }} {{ number_format((float) $item->subtotal, 2) }}</td>
+                            @php($isReturnItem = (int) $item->quantity < 0 || (float) $item->subtotal < 0)
+                            <tr @class(['bg-rose-50/50' => $isReturnItem])>
+                                <td @class([
+                                    'py-4 text-center font-black',
+                                    'text-rose-600' => $isReturnItem,
+                                    'text-violet-600' => ! $isReturnItem,
+                                ])>{{ $item->quantity }}</td>
+                                <td class="px-3 py-4 text-center">
+                                    <span @class([
+                                        'rounded-full px-2.5 py-1 text-xs font-black uppercase tracking-wide',
+                                        'bg-rose-100 text-rose-700' => $isReturnItem,
+                                        'bg-violet-50 text-violet-600' => ! $isReturnItem,
+                                    ])>{{ $isReturnItem ? __('Return') : __('Sale') }}</span>
+                                </td>
+                                <td @class([
+                                    'px-3 py-4 font-mono text-xs',
+                                    'text-rose-600' => $isReturnItem,
+                                    'text-slate-500' => ! $isReturnItem,
+                                ])>{{ $item->product?->sku ?: $item->product_id }}</td>
+                                <td @class([
+                                    'px-3 py-4 font-semibold',
+                                    'text-rose-700' => $isReturnItem,
+                                ])>{{ $item->product?->name ?? __('Item') }}</td>
+                                <td @class([
+                                    'px-3 py-4 text-right',
+                                    'text-rose-600' => $isReturnItem,
+                                    'text-slate-600' => ! $isReturnItem,
+                                ])>{{ $currency }} {{ number_format((float) $item->selling_price, 2) }}</td>
+                                <td @class([
+                                    'py-4 text-right font-bold',
+                                    'text-rose-700' => $isReturnItem,
+                                ])>{{ $currency }} {{ number_format((float) $item->subtotal, 2) }}</td>
                             </tr>
                         @endforeach
                     </tbody>

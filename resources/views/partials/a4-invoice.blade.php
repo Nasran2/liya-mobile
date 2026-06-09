@@ -161,7 +161,8 @@
                 <thead>
                     <tr class="border-b-2 border-slate-200 text-slate-500 font-semibold">
                         <th class="w-[18mm] py-2.5 text-center uppercase tracking-wider text-[10px]">Quantity</th>
-                        <th class="w-[30mm] px-2 py-2.5 uppercase tracking-wider text-[10px]">Item #</th>
+                        <th class="w-[18mm] px-2 py-2.5 text-center uppercase tracking-wider text-[10px]">Type</th>
+                        <th class="w-[28mm] px-2 py-2.5 uppercase tracking-wider text-[10px]">Item #</th>
                         <th class="px-2 py-2.5 uppercase tracking-wider text-[10px]">Description</th>
                         <th class="w-[28mm] px-2 py-2.5 text-right uppercase tracking-wider text-[10px]">Unit Price</th>
                         <th class="w-[28mm] py-2.5 text-right uppercase tracking-wider text-[10px]">Total</th>
@@ -169,18 +170,46 @@
                 </thead>
                 <tbody class="divide-y divide-slate-100 text-slate-700">
                     @foreach ($sale->items as $item)
-                        <tr class="h-8">
-                            <td class="py-2 text-center font-bold text-violet-600">{{ $item->quantity }}</td>
-                            <td class="px-2 py-2 font-mono text-[10px] text-slate-500">{{ $item->product?->sku ?: $item->product_id }}</td>
-                            <td class="px-2 py-2 font-medium text-slate-800">{{ $item->product?->name }}</td>
-                            <td class="px-2 py-2 text-right">{{ $currency }} {{ number_format($item->selling_price, 2) }}</td>
-                            <td class="py-2 text-right font-semibold text-slate-900">{{ $currency }} {{ number_format($item->subtotal, 2) }}</td>
+                        @php($isReturnItem = (int) $item->quantity < 0 || (float) $item->subtotal < 0)
+                        <tr @class(['h-8', 'bg-rose-50/40' => $isReturnItem])>
+                            <td @class([
+                                'py-2 text-center font-bold',
+                                'text-rose-600' => $isReturnItem,
+                                'text-violet-600' => ! $isReturnItem,
+                            ])>{{ $item->quantity }}</td>
+                            <td class="px-2 py-2 text-center">
+                                <span @class([
+                                    'rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wide',
+                                    'bg-rose-100 text-rose-700' => $isReturnItem,
+                                    'bg-violet-50 text-violet-600' => ! $isReturnItem,
+                                ])>{{ $isReturnItem ? __('Return') : __('Sale') }}</span>
+                            </td>
+                            <td @class([
+                                'px-2 py-2 font-mono text-[10px]',
+                                'text-rose-600' => $isReturnItem,
+                                'text-slate-500' => ! $isReturnItem,
+                            ])>{{ $item->product?->sku ?: $item->product_id }}</td>
+                            <td @class([
+                                'px-2 py-2 font-medium',
+                                'text-rose-700' => $isReturnItem,
+                                'text-slate-800' => ! $isReturnItem,
+                            ])>{{ $item->product?->name }}</td>
+                            <td @class([
+                                'px-2 py-2 text-right',
+                                'text-rose-600' => $isReturnItem,
+                            ])>{{ $currency }} {{ number_format($item->selling_price, 2) }}</td>
+                            <td @class([
+                                'py-2 text-right font-semibold',
+                                'text-rose-700' => $isReturnItem,
+                                'text-slate-900' => ! $isReturnItem,
+                            ])>{{ $currency }} {{ number_format($item->subtotal, 2) }}</td>
                         </tr>
                     @endforeach
 
                     @for ($row = 0; $row < $blankRows; $row++)
                         <tr class="h-8">
                             <td class="py-2">&nbsp;</td>
+                            <td class="px-2 py-2">&nbsp;</td>
                             <td class="px-2 py-2">&nbsp;</td>
                             <td class="px-2 py-2">&nbsp;</td>
                             <td class="px-2 py-2">&nbsp;</td>

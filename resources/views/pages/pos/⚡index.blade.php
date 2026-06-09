@@ -5,6 +5,9 @@ use App\Models\HoldOrder;
 use App\Models\Payment;
 use App\Models\Product;
 use App\Models\Sale;
+use App\Models\SaleItem;
+use App\Models\SaleReturn;
+use App\Models\SaleReturnItem;
 use App\Models\Setting;
 use App\Services\ActivityLogger;
 use App\Services\ChequePaymentService;
@@ -41,6 +44,8 @@ new #[Title('POS Terminal')] class extends Component
     public array $paymentRows = [];
     public string $notes = '';
     public string $customerSearch = '';
+    public string $returnSearch = '';
+    public array $returnCredits = [];
     public string $quickCustomerName = '';
     public string $quickCustomerPhone = '';
     public string $quickCustomerEmail = '';
@@ -513,6 +518,81 @@ new #[Title('POS Terminal')] class extends Component
         $this->syncFirstPaymentRowToLegacy();
     }
 
+    public function addReturnCredit(int $saleItemId): void
+    {
+        if (blank($this->customer_id)) {
+            $this->addError('customer_id', __('Select the customer before adding a return.'));
+            return;
+        }
+
+        $saleItem = SaleItem::query()
+            ->with(['sale:id,customer_id,invoice_no,date', 'product:id,name,sku,stock_quantity'])
+            ->whereHas('sale', fn ($query) => $query->where('customer_id', $this->customer_id))
+            ->findOrFail($saleItemId);
+
+        $maxReturnable = $this->maxReturnableQuantityForSaleItem($saleItem);
+
+        if ($maxReturnable <= 0) {
+            Flux::toast(variant: 'danger', text: __('This sold product has already been fully returned.'));
+            return;
+        }
+
+        $key = $this->returnCreditKey($saleItem->sale_id, (int) $saleItem->product_id);
+
+        if (isset($this->returnCredits[$key])) {
+            $this->updateReturnCreditQty($key, (int) $this->returnCredits[$key]['quantity'] + 1);
+            return;
+        }
+
+        $this->returnCredits[$key] = [
+            'sale_id' => (int) $saleItem->sale_id,
+            'invoice_no' => (string) $saleItem->sale?->invoice_no,
+            'product_id' => (int) $saleItem->product_id,
+            'name' => (string) ($saleItem->product?->name ?? __('Unknown product')),
+            'sku' => (string) ($saleItem->product?->sku ?? ''),
+            'quantity' => 1,
+            'max' => $maxReturnable,
+            'return_price' => (float) $saleItem->selling_price,
+            'unit_cost' => (float) $saleItem->cost_price,
+            'subtotal' => round((float) $saleItem->selling_price, 2),
+        ];
+
+        $this->returnSearch = '';
+        $this->paid_amount = $this->cartTotal;
+        $this->syncLegacyPaymentToFirstRowWhenOnlyOneRow();
+    }
+
+    public function updateReturnCreditQty(string $key, int|string|null $quantity): void
+    {
+        if (! isset($this->returnCredits[$key])) {
+            return;
+        }
+
+        $quantity = filter_var($quantity, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $quantity = $quantity === false ? 1 : $quantity;
+        $quantity = min((int) $this->returnCredits[$key]['max'], $quantity);
+
+        $this->returnCredits[$key]['quantity'] = $quantity;
+        $this->syncReturnCreditSubtotal($key);
+    }
+
+    public function updateReturnCreditPrice(string $key, int|float|string|null $returnPrice): void
+    {
+        if (! isset($this->returnCredits[$key])) {
+            return;
+        }
+
+        $this->returnCredits[$key]['return_price'] = round(max(0, (float) $returnPrice), 2);
+        $this->syncReturnCreditSubtotal($key);
+    }
+
+    public function removeReturnCredit(string $key): void
+    {
+        unset($this->returnCredits[$key]);
+        $this->paid_amount = $this->cartTotal;
+        $this->syncLegacyPaymentToFirstRowWhenOnlyOneRow();
+    }
+
     public function updatedPaidAmount(): void
     {
         $this->syncLegacyPaymentToFirstRow();
@@ -543,6 +623,14 @@ new #[Title('POS Terminal')] class extends Component
         $this->syncLegacyPaymentToFirstRow();
     }
 
+    public function updatedCustomerId(): void
+    {
+        $this->returnCredits = [];
+        $this->returnSearch = '';
+        $this->paid_amount = $this->cartTotal;
+        $this->syncLegacyPaymentToFirstRowWhenOnlyOneRow();
+    }
+
     public function submitCheckout(SmsNotificationService $smsNotificationService): void
     {
         $this->syncLegacyPaymentToFirstRowWhenRowsAreEmpty();
@@ -550,7 +638,8 @@ new #[Title('POS Terminal')] class extends Component
         $rules = [
             'customer_id' => 'required|exists:customers,id',
             'saleDate' => 'required|date',
-            'cart' => 'required|array|min:1',
+            'cart' => 'array',
+            'returnCredits' => 'array',
             'discount' => 'required|numeric|min:0',
             'tax' => 'required|numeric|min:0',
             'paymentRows' => 'required|array|min:1',
@@ -563,6 +652,36 @@ new #[Title('POS Terminal')] class extends Component
         ];
 
         $this->validate($rules);
+
+        if (count($this->cart) === 0 && count($this->returnCredits) === 0) {
+            $this->addError('cart', __('Add at least one sale product or return item.'));
+            return;
+        }
+
+        if (count($this->returnCredits) > 0) {
+            $customer = Customer::query()->find($this->customer_id);
+
+            if (! $customer || $customer->phone === '0000000000' || strtolower($customer->name) === 'walk-in customer') {
+                $this->addError('customer_id', __('Select the real customer before adding return items.'));
+                return;
+            }
+
+            foreach ($this->returnCredits as $key => $returnCredit) {
+                $saleItem = SaleItem::query()
+                    ->with('sale:id,customer_id')
+                    ->where('sale_id', $returnCredit['sale_id'] ?? 0)
+                    ->where('product_id', $returnCredit['product_id'] ?? 0)
+                    ->whereHas('sale', fn ($query) => $query->where('customer_id', $this->customer_id))
+                    ->first();
+
+                if (! $saleItem || (int) ($returnCredit['quantity'] ?? 0) > $this->maxReturnableQuantityForSaleItem($saleItem)) {
+                    $this->addError('returnCredits', __('One of the return items is no longer available to return.'));
+                    return;
+                }
+
+                $this->syncReturnCreditSubtotal((string) $key);
+            }
+        }
 
         $paymentRows = $this->normalisedPaymentRows();
         $hasChequePayment = collect($paymentRows)->contains(fn (array $paymentRow): bool => $paymentRow['method'] === 'cheque');
@@ -612,6 +731,9 @@ new #[Title('POS Terminal')] class extends Component
         $totalCost = 0.00;
         foreach ($this->cart as $item) {
             $totalCost += $item['quantity'] * $item['cost_price'];
+        }
+        foreach ($this->returnCredits as $returnCredit) {
+            $totalCost -= (int) $returnCredit['quantity'] * (float) $returnCredit['unit_cost'];
         }
         $netProfit = $grandTotal - $totalCost;
 
@@ -691,6 +813,24 @@ new #[Title('POS Terminal')] class extends Component
             $product->decrement('stock_quantity', $item['quantity']);
         }
 
+        foreach ($this->returnCredits as $returnCredit) {
+            $quantity = (int) $returnCredit['quantity'];
+            $subtotal = round((float) $returnCredit['subtotal'], 2);
+
+            $sale->items()->create([
+                'product_id' => $returnCredit['product_id'],
+                'quantity' => -$quantity,
+                'cost_price' => $returnCredit['unit_cost'],
+                'selling_price' => $returnCredit['return_price'],
+                'subtotal' => -$subtotal,
+            ]);
+
+            $product = Product::query()->findOrFail($returnCredit['product_id']);
+            $product->increment('stock_quantity', $quantity);
+        }
+
+        $this->recordCheckoutReturnCredits($sale);
+
         // 3. Log cashier polymorphic payment
         foreach ($paymentRows as $paymentRow) {
             if ($paymentRow['amount'] <= 0) {
@@ -760,7 +900,7 @@ new #[Title('POS Terminal')] class extends Component
 
     public function resetCart(): void
     {
-        $this->reset('cart', 'discount', 'discount_type', 'tax', 'paid_amount', 'payment_method', 'payment_reference', 'cheque_bank', 'cheque_no', 'cheque_date', 'notes', 'customerSearch', 'paymentRows');
+        $this->reset('cart', 'returnCredits', 'returnSearch', 'discount', 'discount_type', 'tax', 'paid_amount', 'payment_method', 'payment_reference', 'cheque_bank', 'cheque_no', 'cheque_date', 'notes', 'customerSearch', 'paymentRows');
         $this->saleDate = today()->toDateString();
         $this->paymentRows = [$this->blankPaymentRow()];
         $defaultCust = Customer::query()->where('name', 'Walk-in Customer')->first();
@@ -814,9 +954,54 @@ new #[Title('POS Terminal')] class extends Component
     }
 
     #[Computed]
+    public function returnCandidates(): Collection
+    {
+        if (blank($this->customer_id)) {
+            return collect();
+        }
+
+        $search = trim($this->returnSearch);
+
+        if ($search === '') {
+            return collect();
+        }
+
+        return SaleItem::query()
+            ->with(['sale:id,customer_id,invoice_no,date', 'product:id,name,sku'])
+            ->where('quantity', '>', 0)
+            ->whereHas('sale', fn ($query) => $query->where('customer_id', $this->customer_id))
+            ->when($search !== '', function ($query) use ($search): void {
+                $query->where(function ($query) use ($search): void {
+                    $query->whereHas('product', function ($query) use ($search): void {
+                        $query->where('name', 'like', '%'.$search.'%')
+                            ->orWhere('sku', 'like', '%'.$search.'%');
+                    })
+                        ->orWhereHas('sale', fn ($query) => $query->where('invoice_no', 'like', '%'.$search.'%'));
+                });
+            })
+            ->orderByDesc(
+                Sale::query()
+                    ->select('date')
+                    ->whereColumn('sales.id', 'sale_items.sale_id')
+                    ->limit(1)
+            )
+            ->orderByDesc('id')
+            ->limit(8)
+            ->get()
+            ->filter(fn (SaleItem $saleItem): bool => $this->maxReturnableQuantityForSaleItem($saleItem) > 0)
+            ->values();
+    }
+
+    #[Computed]
     public function cartSubtotal()
     {
-        return array_reduce($this->cart, fn($carry, $item) => $carry + $item['subtotal'], 0.00);
+        return round(array_reduce($this->cart, fn ($carry, $item) => $carry + $item['subtotal'], 0.00) - $this->returnCreditsTotal, 2);
+    }
+
+    #[Computed]
+    public function returnCreditsTotal()
+    {
+        return round((float) collect($this->returnCredits)->sum('subtotal'), 2);
     }
 
     #[Computed]
@@ -831,7 +1016,7 @@ new #[Title('POS Terminal')] class extends Component
     #[Computed]
     public function cartTotal()
     {
-        return ($this->cartSubtotal + (float) $this->tax) - $this->cartDiscountAmount;
+        return round(max(0.00, ($this->cartSubtotal + (float) $this->tax) - $this->cartDiscountAmount), 2);
     }
 
     #[Computed]
@@ -946,6 +1131,75 @@ new #[Title('POS Terminal')] class extends Component
     private function chequePaymentRowsTotal(array $paymentRows): float
     {
         return round((float) collect($paymentRows)->where('method', 'cheque')->sum('amount'), 2);
+    }
+
+    private function syncReturnCreditSubtotal(string $key): void
+    {
+        if (! isset($this->returnCredits[$key])) {
+            return;
+        }
+
+        $quantity = max(1, (int) $this->returnCredits[$key]['quantity']);
+        $returnPrice = max(0, (float) $this->returnCredits[$key]['return_price']);
+
+        $this->returnCredits[$key]['subtotal'] = round($quantity * $returnPrice, 2);
+        $this->paid_amount = $this->cartTotal;
+        $this->syncLegacyPaymentToFirstRowWhenOnlyOneRow();
+    }
+
+    private function returnCreditKey(int $saleId, int $productId): string
+    {
+        return $saleId.'-'.$productId;
+    }
+
+    public function maxReturnableQuantityForSaleItem(SaleItem $saleItem): int
+    {
+        $soldQuantity = (int) SaleItem::query()
+            ->where('sale_id', $saleItem->sale_id)
+            ->where('product_id', $saleItem->product_id)
+            ->where('quantity', '>', 0)
+            ->sum('quantity');
+
+        $returnedQuantity = (int) SaleReturnItem::query()
+            ->whereHas('returnLog', fn ($query) => $query->where('sale_id', $saleItem->sale_id))
+            ->where('product_id', $saleItem->product_id)
+            ->sum('quantity');
+
+        return max(0, $soldQuantity - $returnedQuantity);
+    }
+
+    private function recordCheckoutReturnCredits(Sale $checkoutSale): void
+    {
+        foreach (collect($this->returnCredits)->groupBy('sale_id') as $originalSaleId => $returnCredits) {
+            $return = SaleReturn::query()->create([
+                'sale_id' => (int) $originalSaleId,
+                'customer_id' => $checkoutSale->customer_id,
+                'invoice_no' => $this->nextReturnNumber(),
+                'date' => $this->saleDate,
+                'return_type' => 'bill_credit',
+                'refund_amount' => 0,
+                'adjusted_amount' => round((float) $returnCredits->sum('subtotal'), 2),
+                'notes' => 'Return credited on checkout '.$checkoutSale->invoice_no.'.',
+            ]);
+
+            foreach ($returnCredits as $returnCredit) {
+                $return->items()->create([
+                    'product_id' => $returnCredit['product_id'],
+                    'quantity' => (int) $returnCredit['quantity'],
+                    'refund_price' => (float) $returnCredit['return_price'],
+                    'subtotal' => (float) $returnCredit['subtotal'],
+                ]);
+            }
+        }
+    }
+
+    private function nextReturnNumber(): string
+    {
+        do {
+            $returnNo = 'RET-'.now()->format('ymd').'-'.random_int(100, 999);
+        } while (SaleReturn::query()->where('invoice_no', $returnNo)->exists());
+
+        return $returnNo;
     }
 
     #[Computed]
@@ -1920,6 +2174,112 @@ new #[Title('POS Terminal')] class extends Component
                         <span class="font-extrabold text-orange-600">Rs {{ number_format($this->cartTotal, 2) }}</span>
                     </div>
                 </div>
+
+                <div class="rounded-3xl border border-rose-100 bg-rose-50/50 p-4">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                                <h4 class="text-xs font-black uppercase tracking-wider text-rose-500">{{ __('Return / Bill Credit') }}</h4>
+                                <p class="mt-1 text-xs font-semibold leading-relaxed text-rose-700">
+                                    {{ __('Search products sold to the selected customer and subtract the returned value from this bill.') }}
+                                </p>
+                            </div>
+                            <div class="shrink-0 rounded-2xl bg-white px-3 py-2 text-xs font-black text-rose-600 ring-1 ring-rose-100">
+                                - Rs {{ number_format($this->returnCreditsTotal, 2) }}
+                            </div>
+                        </div>
+
+                        @if (blank($customer_id))
+                            <p class="mt-3 rounded-2xl bg-white px-3 py-2 text-xs font-bold text-zinc-500 ring-1 ring-zinc-100">
+                                {{ __('Select the customer first to load their previous sold products.') }}
+                            </p>
+                        @else
+                            <div class="mt-3">
+                                <flux:input wire:model.live.debounce.250ms="returnSearch" placeholder="Search previous bill, product, or SKU..." />
+                            </div>
+
+                            @if (filled($returnSearch) && $this->returnCandidates->isNotEmpty())
+                                <div class="mt-3 grid gap-2">
+                                    @foreach ($this->returnCandidates as $saleItem)
+                                        @php($returnableQty = $this->maxReturnableQuantityForSaleItem($saleItem))
+                                        <button
+                                            type="button"
+                                            wire:click="addReturnCredit({{ $saleItem->id }})"
+                                            class="rounded-2xl border border-rose-100 bg-white p-3 text-left shadow-sm transition active:scale-[0.99]"
+                                            wire:key="return-candidate-{{ $saleItem->id }}"
+                                        >
+                                            <div class="flex items-start justify-between gap-3">
+                                                <div class="min-w-0">
+                                                    <p class="truncate text-sm font-black text-zinc-950">{{ $saleItem->product?->name }}</p>
+                                                    <p class="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-zinc-400">
+                                                        {{ $saleItem->sale?->invoice_no }} · {{ $saleItem->sale?->date?->format('Y-m-d') }} · SKU {{ $saleItem->product?->sku ?: '-' }}
+                                                    </p>
+                                                </div>
+                                                <div class="shrink-0 text-right">
+                                                    <p class="text-[10px] font-bold uppercase text-zinc-400">{{ __('Returnable') }}</p>
+                                                    <p class="text-sm font-black text-rose-600">{{ $returnableQty }}</p>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    @endforeach
+                                </div>
+                            @elseif (filled($returnSearch))
+                                <p class="mt-3 rounded-2xl bg-white px-3 py-2 text-xs font-bold text-zinc-500 ring-1 ring-zinc-100">
+                                    {{ __('No returnable sold products found for this customer.') }}
+                                </p>
+                            @endif
+                        @endif
+
+                        @error('returnCredits')
+                            <p class="mt-3 rounded-2xl border border-rose-200 bg-white px-3 py-2 text-xs font-bold text-rose-700">{{ $message }}</p>
+                        @enderror
+
+                        @if (count($returnCredits) > 0)
+                            <div class="mt-3 grid gap-3">
+                                @foreach ($returnCredits as $key => $returnCredit)
+                                    <div class="rounded-3xl border border-rose-100 bg-white p-4 shadow-sm" wire:key="return-credit-{{ $key }}">
+                                        <div class="flex items-start justify-between gap-3">
+                                            <div class="min-w-0">
+                                                <p class="truncate text-sm font-black text-zinc-950">{{ $returnCredit['name'] }}</p>
+                                                <p class="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-zinc-400">
+                                                    {{ $returnCredit['invoice_no'] }} · {{ __('Returnable') }} {{ $returnCredit['max'] }}
+                                                </p>
+                                            </div>
+                                            <button type="button" wire:click="removeReturnCredit('{{ $key }}')" class="text-xs font-black text-rose-500 transition active:scale-95">
+                                                {{ __('Remove') }}
+                                            </button>
+                                        </div>
+
+                                        <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                                            <flux:input
+                                                value="{{ $returnCredit['quantity'] }}"
+                                                :label="__('Return Qty')"
+                                                type="number"
+                                                min="1"
+                                                max="{{ $returnCredit['max'] }}"
+                                                step="1"
+                                                inputmode="numeric"
+                                                wire:change="updateReturnCreditQty('{{ $key }}', $event.target.value)"
+                                            />
+                                            <flux:input
+                                                value="{{ $returnCredit['return_price'] }}"
+                                                :label="__('Return Price (Rs)')"
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                inputmode="decimal"
+                                                wire:change="updateReturnCreditPrice('{{ $key }}', $event.target.value)"
+                                            />
+                                        </div>
+
+                                        <div class="mt-3 flex items-center justify-between rounded-2xl bg-rose-50 px-3 py-2 text-xs">
+                                            <span class="font-bold text-rose-700">{{ __('Bill Credit') }}</span>
+                                            <span class="font-black text-rose-700">- Rs {{ number_format((float) $returnCredit['subtotal'], 2) }}</span>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endif
+                    </div>
 
                 <!-- Payment details -->
                 <div class="flex flex-col gap-3">

@@ -4,6 +4,7 @@ use App\Models\Customer;
 use App\Models\Payment;
 use App\Models\Product;
 use App\Models\Sale;
+use App\Models\SaleReturn;
 use App\Models\Setting;
 use App\Models\User;
 use Database\Seeders\SampleProductsSeeder;
@@ -271,6 +272,196 @@ test('cart panels can select a customer before checkout and show previous due fi
         ->set('checkoutOpen', true)
         ->assertSet('customer_id', $dueCustomer->id)
         ->assertSee('Selected: Zed Due Customer');
+});
+
+test('checkout can add a previous sale return as a bill credit', function () {
+    $user = User::factory()->create([
+        'role' => 'super_admin',
+        'is_active' => true,
+    ]);
+    $customer = Customer::query()->create([
+        'name' => 'Return Credit Customer',
+        'phone' => '0770000130',
+        'opening_balance' => 0,
+        'due_balance' => 0,
+    ]);
+    $returnedProduct = Product::factory()->create([
+        'name' => 'Returned Cable',
+        'sku' => 'RETURN-CABLE',
+        'cost_price' => 300,
+        'selling_price' => 1000,
+        'stock_quantity' => 4,
+        'is_active' => true,
+    ]);
+    $newProduct = Product::factory()->create([
+        'name' => 'New Charger',
+        'sku' => 'NEW-CHARGER',
+        'cost_price' => 500,
+        'selling_price' => 1500,
+        'stock_quantity' => 5,
+        'is_active' => true,
+    ]);
+    $originalSale = Sale::query()->create([
+        'customer_id' => $customer->id,
+        'invoice_no' => 'INV-RETURN-OLD',
+        'date' => today()->subDay()->toDateString(),
+        'subtotal_amount' => 2000,
+        'discount_amount' => 0,
+        'tax_amount' => 0,
+        'grand_total' => 2000,
+        'paid_amount' => 2000,
+        'due_amount' => 0,
+        'payment_status' => 'paid',
+        'profit' => 1400,
+    ]);
+    $originalSaleItem = $originalSale->items()->create([
+        'product_id' => $returnedProduct->id,
+        'quantity' => 2,
+        'cost_price' => 300,
+        'selling_price' => 1000,
+        'subtotal' => 2000,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::pos.index')
+        ->set('customer_id', $customer->id)
+        ->call('addToCart', $newProduct->id)
+        ->set('returnSearch', 'Cable')
+        ->assertSee('Returned Cable')
+        ->call('addReturnCredit', $originalSaleItem->id)
+        ->assertSet('returnCredits.'.$originalSale->id.'-'.$returnedProduct->id.'.quantity', 1)
+        ->call('updateReturnCreditPrice', $originalSale->id.'-'.$returnedProduct->id, 800)
+        ->assertSet('returnCredits.'.$originalSale->id.'-'.$returnedProduct->id.'.subtotal', 800.00)
+        ->assertSet('cartTotal', 700.00)
+        ->call('submitCheckout')
+        ->assertHasNoErrors();
+
+    $checkoutSale = Sale::query()
+        ->where('invoice_no', '!=', 'INV-RETURN-OLD')
+        ->with('items')
+        ->firstOrFail();
+    $return = SaleReturn::query()->with('items')->firstOrFail();
+
+    expect((float) $checkoutSale->grand_total)->toBe(700.0)
+        ->and($checkoutSale->items)->toHaveCount(2)
+        ->and((int) $checkoutSale->items->firstWhere('product_id', $returnedProduct->id)->quantity)->toBe(-1)
+        ->and((float) $checkoutSale->items->firstWhere('product_id', $returnedProduct->id)->subtotal)->toBe(-800.0)
+        ->and((float) $return->adjusted_amount)->toBe(800.0)
+        ->and($return->return_type)->toBe('bill_credit')
+        ->and((int) $return->items->first()->quantity)->toBe(1)
+        ->and((float) $return->items->first()->refund_price)->toBe(800.0)
+        ->and((int) $returnedProduct->refresh()->stock_quantity)->toBe(5)
+        ->and((int) $newProduct->refresh()->stock_quantity)->toBe(4);
+});
+
+test('return products are hidden until the cashier searches', function () {
+    $user = User::factory()->create([
+        'role' => 'super_admin',
+        'is_active' => true,
+    ]);
+    $customer = Customer::query()->create([
+        'name' => 'Hidden Return Customer',
+        'phone' => '0770000132',
+        'opening_balance' => 0,
+        'due_balance' => 0,
+    ]);
+    $product = Product::factory()->create([
+        'name' => 'Hidden Return Product',
+        'sku' => 'HIDDEN-RETURN',
+        'cost_price' => 100,
+        'selling_price' => 500,
+        'stock_quantity' => 2,
+        'is_active' => true,
+    ]);
+    $sale = Sale::query()->create([
+        'customer_id' => $customer->id,
+        'invoice_no' => 'INV-HIDDEN-RETURN',
+        'date' => today()->subDay()->toDateString(),
+        'subtotal_amount' => 500,
+        'discount_amount' => 0,
+        'tax_amount' => 0,
+        'grand_total' => 500,
+        'paid_amount' => 500,
+        'due_amount' => 0,
+        'payment_status' => 'paid',
+        'profit' => 400,
+    ]);
+    $sale->items()->create([
+        'product_id' => $product->id,
+        'quantity' => 1,
+        'cost_price' => 100,
+        'selling_price' => 500,
+        'subtotal' => 500,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::pos.index')
+        ->set('customer_id', $customer->id)
+        ->assertDontSee('Hidden Return Product')
+        ->set('returnSearch', 'Hidden')
+        ->assertSee('Hidden Return Product');
+});
+
+test('return credit cannot exceed the previous invoice return balance', function () {
+    $user = User::factory()->create([
+        'role' => 'super_admin',
+        'is_active' => true,
+    ]);
+    $customer = Customer::query()->create([
+        'name' => 'Already Returned Customer',
+        'phone' => '0770000131',
+        'opening_balance' => 0,
+        'due_balance' => 0,
+    ]);
+    $product = Product::factory()->create([
+        'name' => 'Fully Returned Product',
+        'sku' => 'FULL-RETURN',
+        'cost_price' => 100,
+        'selling_price' => 500,
+        'stock_quantity' => 2,
+        'is_active' => true,
+    ]);
+    $sale = Sale::query()->create([
+        'customer_id' => $customer->id,
+        'invoice_no' => 'INV-FULL-RETURN',
+        'date' => today()->subDay()->toDateString(),
+        'subtotal_amount' => 500,
+        'discount_amount' => 0,
+        'tax_amount' => 0,
+        'grand_total' => 500,
+        'paid_amount' => 500,
+        'due_amount' => 0,
+        'payment_status' => 'paid',
+        'profit' => 400,
+    ]);
+    $saleItem = $sale->items()->create([
+        'product_id' => $product->id,
+        'quantity' => 1,
+        'cost_price' => 100,
+        'selling_price' => 500,
+        'subtotal' => 500,
+    ]);
+    $return = SaleReturn::query()->create([
+        'sale_id' => $sale->id,
+        'customer_id' => $customer->id,
+        'invoice_no' => 'RET-FULL-RETURN',
+        'date' => today()->toDateString(),
+        'return_type' => 'bill_credit',
+        'refund_amount' => 0,
+        'adjusted_amount' => 500,
+    ]);
+    $return->items()->create([
+        'product_id' => $product->id,
+        'quantity' => 1,
+        'refund_price' => 500,
+        'subtotal' => 500,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::pos.index')
+        ->set('customer_id', $customer->id)
+        ->call('addReturnCredit', $saleItem->id)
+        ->assertSet('returnCredits', []);
 });
 
 test('cheque checkout creates a pending hold payment', function () {
