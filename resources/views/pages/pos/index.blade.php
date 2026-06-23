@@ -129,7 +129,7 @@ new #[Title('POS Terminal')] class extends Component
             $this->tax = (float) $sale->tax_amount;
             $this->notes = $sale->notes ?? '';
             $this->saleDate = $sale->date?->toDateString() ?? today()->toDateString();
-            
+
             // Add items to cart
             foreach ($sale->items as $item) {
                 $product = $item->product;
@@ -162,7 +162,7 @@ new #[Title('POS Terminal')] class extends Component
         Cache::remember(
             'pos:auto-pass-overdue-cheques:' . today()->toDateString(),
             now()->addMinutes(15),
-            fn () => app(ChequePaymentService::class)->autoPassOverduePendingCheques()
+            fn() => app(ChequePaymentService::class)->autoPassOverduePendingCheques()
         );
         $this->loadHeldOrders();
     }
@@ -490,10 +490,10 @@ new #[Title('POS Terminal')] class extends Component
         $this->tax = (float) $hold->tax;
         $this->paid_amount = $this->cartTotal;
         $this->syncLegacyPaymentToFirstRowWhenOnlyOneRow();
-        
+
         $hold->delete();
         $this->loadHeldOrders();
-        
+
         Flux::toast(variant: 'success', text: __('Cart session resumed.'));
     }
 
@@ -527,7 +527,7 @@ new #[Title('POS Terminal')] class extends Component
 
         $saleItem = SaleItem::query()
             ->with(['sale:id,customer_id,invoice_no,date', 'product:id,name,sku,stock_quantity'])
-            ->whereHas('sale', fn ($query) => $query->where('customer_id', $this->customer_id))
+            ->whereHas('sale', fn($query) => $query->where('customer_id', $this->customer_id))
             ->findOrFail($saleItemId);
 
         $maxReturnable = $this->maxReturnableQuantityForSaleItem($saleItem);
@@ -633,7 +633,6 @@ new #[Title('POS Terminal')] class extends Component
 
     public function submitCheckout(SmsNotificationService $smsNotificationService): void
     {
-        $this->syncLegacyPaymentToFirstRowWhenRowsAreEmpty();
 
         $rules = [
             'customer_id' => 'required|exists:customers,id',
@@ -671,7 +670,7 @@ new #[Title('POS Terminal')] class extends Component
                     ->with('sale:id,customer_id')
                     ->where('sale_id', $returnCredit['sale_id'] ?? 0)
                     ->where('product_id', $returnCredit['product_id'] ?? 0)
-                    ->whereHas('sale', fn ($query) => $query->where('customer_id', $this->customer_id))
+                    ->whereHas('sale', fn($query) => $query->where('customer_id', $this->customer_id))
                     ->first();
 
                 if (! $saleItem || (int) ($returnCredit['quantity'] ?? 0) > $this->maxReturnableQuantityForSaleItem($saleItem)) {
@@ -684,7 +683,7 @@ new #[Title('POS Terminal')] class extends Component
         }
 
         $paymentRows = $this->normalisedPaymentRows();
-        $hasChequePayment = collect($paymentRows)->contains(fn (array $paymentRow): bool => $paymentRow['method'] === 'cheque');
+        $hasChequePayment = collect($paymentRows)->contains(fn(array $paymentRow): bool => $paymentRow['method'] === 'cheque');
 
         if ($hasChequePayment) {
             $customer = Customer::query()->find($this->customer_id);
@@ -969,14 +968,14 @@ new #[Title('POS Terminal')] class extends Component
         return SaleItem::query()
             ->with(['sale:id,customer_id,invoice_no,date', 'product:id,name,sku'])
             ->where('quantity', '>', 0)
-            ->whereHas('sale', fn ($query) => $query->where('customer_id', $this->customer_id))
+            ->whereHas('sale', fn($query) => $query->where('customer_id', $this->customer_id))
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($query) use ($search): void {
                     $query->whereHas('product', function ($query) use ($search): void {
-                        $query->where('name', 'like', '%'.$search.'%')
-                            ->orWhere('sku', 'like', '%'.$search.'%');
+                        $query->where('name', 'like', '%' . $search . '%')
+                            ->orWhere('sku', 'like', '%' . $search . '%');
                     })
-                        ->orWhereHas('sale', fn ($query) => $query->where('invoice_no', 'like', '%'.$search.'%'));
+                        ->orWhereHas('sale', fn($query) => $query->where('invoice_no', 'like', '%' . $search . '%'));
                 });
             })
             ->orderByDesc(
@@ -988,14 +987,14 @@ new #[Title('POS Terminal')] class extends Component
             ->orderByDesc('id')
             ->limit(8)
             ->get()
-            ->filter(fn (SaleItem $saleItem): bool => $this->maxReturnableQuantityForSaleItem($saleItem) > 0)
+            ->filter(fn(SaleItem $saleItem): bool => $this->maxReturnableQuantityForSaleItem($saleItem) > 0)
             ->values();
     }
 
     #[Computed]
     public function cartSubtotal()
     {
-        return round(array_reduce($this->cart, fn ($carry, $item) => $carry + $item['subtotal'], 0.00) - $this->returnCreditsTotal, 2);
+        return round(array_reduce($this->cart, fn($carry, $item) => $carry + $item['subtotal'], 0.00) - $this->returnCreditsTotal, 2);
     }
 
     #[Computed]
@@ -1063,16 +1062,6 @@ new #[Title('POS Terminal')] class extends Component
         $this->paymentRows[0]['cheque_date'] = $this->cheque_date;
     }
 
-    private function syncLegacyPaymentToFirstRowWhenRowsAreEmpty(): void
-    {
-        $hasEnteredRows = collect($this->paymentRows)
-            ->contains(fn (array $paymentRow): bool => (float) ($paymentRow['amount'] ?? 0) > 0);
-
-        if (! $hasEnteredRows && (float) $this->paid_amount > 0) {
-            $this->syncLegacyPaymentToFirstRow();
-        }
-    }
-
     private function syncLegacyPaymentToFirstRowWhenOnlyOneRow(): void
     {
         if (count($this->paymentRows) !== 1) {
@@ -1111,7 +1100,7 @@ new #[Title('POS Terminal')] class extends Component
                     'cheque_date' => $method === 'cheque' ? (string) ($row['cheque_date'] ?? '') : null,
                 ];
             })
-            ->filter(fn (array $row): bool => $row['amount'] > 0)
+            ->filter(fn(array $row): bool => $row['amount'] > 0)
             ->values()
             ->all();
     }
@@ -1149,7 +1138,7 @@ new #[Title('POS Terminal')] class extends Component
 
     private function returnCreditKey(int $saleId, int $productId): string
     {
-        return $saleId.'-'.$productId;
+        return $saleId . '-' . $productId;
     }
 
     public function maxReturnableQuantityForSaleItem(SaleItem $saleItem): int
@@ -1161,7 +1150,7 @@ new #[Title('POS Terminal')] class extends Component
             ->sum('quantity');
 
         $returnedQuantity = (int) SaleReturnItem::query()
-            ->whereHas('returnLog', fn ($query) => $query->where('sale_id', $saleItem->sale_id))
+            ->whereHas('returnLog', fn($query) => $query->where('sale_id', $saleItem->sale_id))
             ->where('product_id', $saleItem->product_id)
             ->sum('quantity');
 
@@ -1179,7 +1168,7 @@ new #[Title('POS Terminal')] class extends Component
                 'return_type' => 'bill_credit',
                 'refund_amount' => 0,
                 'adjusted_amount' => round((float) $returnCredits->sum('subtotal'), 2),
-                'notes' => 'Return credited on checkout '.$checkoutSale->invoice_no.'.',
+                'notes' => 'Return credited on checkout ' . $checkoutSale->invoice_no . '.',
             ]);
 
             foreach ($returnCredits as $returnCredit) {
@@ -1196,7 +1185,7 @@ new #[Title('POS Terminal')] class extends Component
     private function nextReturnNumber(): string
     {
         do {
-            $returnNo = 'RET-'.now()->format('ymd').'-'.random_int(100, 999);
+            $returnNo = 'RET-' . now()->format('ymd') . '-' . random_int(100, 999);
         } while (SaleReturn::query()->where('invoice_no', $returnNo)->exists());
 
         return $returnNo;
@@ -1521,16 +1510,14 @@ new #[Title('POS Terminal')] class extends Component
         }
     }"
     x-effect="if (successOpen && !sharePreparing && !sharePdfFile && !sharePdfError) { $nextTick(() => setTimeout(() => prepareBillPdf(), 250)) }"
-    x-on:play-beep.window="playSuccessBeep()"
->
+    x-on:play-beep.window="playSuccessBeep()">
     <!-- Hidden barcode input form for active scanner tracking -->
     <form wire:submit.prevent="handleBarcodeInput" class="sr-only">
         <input
             wire:model="barcodeInput"
             id="hidden-barcode-scanner"
             type="text"
-            placeholder="Active Scanner Target"
-        />
+            placeholder="Active Scanner Target" />
     </form>
 
     <!-- POS command header -->
@@ -1580,19 +1567,17 @@ new #[Title('POS Terminal')] class extends Component
             <flux:select wire:model.live="customer_id" required>
                 <option value="">{{ __('-- Select the customer --') }}</option>
                 @foreach ($this->customers as $cust)
-                    <option value="{{ $cust->id }}">{{ $cust->name }} ({{ $cust->phone ?: 'Walk-in' }})</option>
+                <option value="{{ $cust->id }}">{{ $cust->name }} ({{ $cust->phone ?: 'Walk-in' }})</option>
                 @endforeach
             </flux:select>
         </div>
 
         <div class="mt-2 flex items-center justify-between gap-3 rounded-2xl bg-zinc-50 px-3 py-2 text-xs">
             <span class="font-bold text-zinc-500">{{ __('Previous Due') }}</span>
-            <span @class([
-                'font-black',
-                'text-rose-600' => (float) ($this->selectedCustomer?->due_balance ?? 0) > 0,
+            <span @class([ 'font-black' , 'text-rose-600'=> (float) ($this->selectedCustomer?->due_balance ?? 0) > 0,
                 'text-emerald-600' => (float) ($this->selectedCustomer?->due_balance ?? 0) <= 0,
-            ])>
-                Rs {{ number_format((float) ($this->selectedCustomer?->due_balance ?? 0), 2) }}
+                    ])>
+                    Rs {{ number_format((float) ($this->selectedCustomer?->due_balance ?? 0), 2) }}
             </span>
         </div>
     </div>
@@ -1608,14 +1593,14 @@ new #[Title('POS Terminal')] class extends Component
                 </span>
                 {{ __('Holds Queue: ') }} <span class="font-bold">{{ count($heldOrders) }}</span>
             </span>
-            
+
             @if (count($heldOrders) > 0)
-                <select @change="$wire.resumeHeldOrder($event.target.value); $event.target.value = ''" class="max-w-[100px] cursor-pointer bg-transparent text-xs font-bold text-violet-900 hover:underline focus:outline-none">
-                    <option value="">Resume</option>
-                    @foreach ($heldOrders as $held)
-                        <option value="{{ $held['id'] }}">{{ $held['hold_no'] }}</option>
-                    @endforeach
-                </select>
+            <select @change="$wire.resumeHeldOrder($event.target.value); $event.target.value = ''" class="max-w-[100px] cursor-pointer bg-transparent text-xs font-bold text-violet-900 hover:underline focus:outline-none">
+                <option value="">Resume</option>
+                @foreach ($heldOrders as $held)
+                <option value="{{ $held['id'] }}">{{ $held['hold_no'] }}</option>
+                @endforeach
+            </select>
             @endif
         </div>
     </div>
@@ -1652,19 +1637,17 @@ new #[Title('POS Terminal')] class extends Component
                     <flux:select wire:model.live="customer_id" required>
                         <option value="">{{ __('-- Select the customer --') }}</option>
                         @foreach ($this->customers as $cust)
-                            <option value="{{ $cust->id }}">{{ $cust->name }} ({{ $cust->phone ?: 'Walk-in' }})</option>
+                        <option value="{{ $cust->id }}">{{ $cust->name }} ({{ $cust->phone ?: 'Walk-in' }})</option>
                         @endforeach
                     </flux:select>
                 </div>
 
                 <div class="mt-2 flex items-center justify-between gap-3 rounded-2xl bg-white px-3 py-2 text-xs">
                     <span class="font-bold text-zinc-500">{{ __('Previous Due') }}</span>
-                    <span @class([
-                        'font-black',
-                        'text-rose-600' => (float) ($this->selectedCustomer?->due_balance ?? 0) > 0,
+                    <span @class([ 'font-black' , 'text-rose-600'=> (float) ($this->selectedCustomer?->due_balance ?? 0) > 0,
                         'text-emerald-600' => (float) ($this->selectedCustomer?->due_balance ?? 0) <= 0,
-                    ])>
-                        Rs {{ number_format((float) ($this->selectedCustomer?->due_balance ?? 0), 2) }}
+                            ])>
+                            Rs {{ number_format((float) ($this->selectedCustomer?->due_balance ?? 0), 2) }}
                     </span>
                 </div>
             </div>
@@ -1672,63 +1655,61 @@ new #[Title('POS Terminal')] class extends Component
             <!-- Cart rows -->
             <div class="flex-1 overflow-y-auto scrollbar-none py-4 flex flex-col gap-3">
                 @forelse ($cart as $index => $item)
-                    <div class="flex flex-col gap-3 rounded-3xl border border-violet-100 bg-violet-50/40 p-3 shadow-sm" wire:key="desktop-cart-{{ $index }}">
-                        <div class="flex justify-between items-start">
-                            <div>
-                                <button type="button" wire:click="openCartItemEditor({{ $index }})" class="line-clamp-1 text-left text-sm font-black text-zinc-950 underline-offset-4 transition hover:text-violet-700 hover:underline">
-                                    {{ $item['name'] }}
-                                </button>
-                                <span class="text-[9px] text-zinc-400 uppercase font-mono mt-0.5">SKU: {{ $item['sku'] }}</span>
-                                @if (($item['discount_value'] ?? 0) > 0)
-                                    <span class="mt-1 block text-[9px] font-bold uppercase tracking-wide text-emerald-600">
-                                        {{ __('Discount') }}:
-                                        {{ ($item['discount_type'] ?? 'fixed') === 'percentage' ? number_format($item['discount_value'], 2) . '%' : 'Rs ' . number_format($item['discount_value'], 2) }}
-                                    </span>
-                                @endif
-                            </div>
-                            <button type="button" wire:click="removeCartRow({{ $index }})" class="grid h-8 w-8 place-items-center rounded-xl bg-white text-rose-500 shadow-sm transition active:scale-90">
-                                <flux:icon.trash class="size-4" />
+                <div class="flex flex-col gap-3 rounded-3xl border border-violet-100 bg-violet-50/40 p-3 shadow-sm" wire:key="desktop-cart-{{ $index }}">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <button type="button" wire:click="openCartItemEditor({{ $index }})" class="line-clamp-1 text-left text-sm font-black text-zinc-950 underline-offset-4 transition hover:text-violet-700 hover:underline">
+                                {{ $item['name'] }}
                             </button>
+                            <span class="text-[9px] text-zinc-400 uppercase font-mono mt-0.5">SKU: {{ $item['sku'] }}</span>
+                            @if (($item['discount_value'] ?? 0) > 0)
+                            <span class="mt-1 block text-[9px] font-bold uppercase tracking-wide text-emerald-600">
+                                {{ __('Discount') }}:
+                                {{ ($item['discount_type'] ?? 'fixed') === 'percentage' ? number_format($item['discount_value'], 2) . '%' : 'Rs ' . number_format($item['discount_value'], 2) }}
+                            </span>
+                            @endif
+                        </div>
+                        <button type="button" wire:click="removeCartRow({{ $index }})" class="grid h-8 w-8 place-items-center rounded-xl bg-white text-rose-500 shadow-sm transition active:scale-90">
+                            <flux:icon.trash class="size-4" />
+                        </button>
+                    </div>
+
+                    <!-- Row control and details -->
+                    <div class="flex items-center justify-between border-t border-zinc-100 pt-2 text-xs">
+                        <div class="flex items-center gap-1 bg-white rounded-xl border border-zinc-200 p-0.5">
+                            <button type="button" wire:click="updateCartQty({{ $index }}, {{ $item['quantity'] - 1 }})" class="size-6 rounded-lg hover:bg-zinc-100 flex items-center justify-center font-bold text-zinc-600" aria-label="{{ __('Decrease quantity') }}">-</button>
+                            <input
+                                type="number"
+                                min="1"
+                                step="1"
+                                inputmode="numeric"
+                                value="{{ $item['quantity'] }}"
+                                @if (! $allowNegativeStock) max="{{ $item['stock'] }}" @endif
+                                wire:change="updateCartQty({{ $index }}, $event.target.value)"
+                                class="h-6 w-10 appearance-none bg-transparent text-center text-xs font-bold text-zinc-900 focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                aria-label="{{ __('Quantity') }}" />
+                            <button type="button" wire:click="updateCartQty({{ $index }}, {{ $item['quantity'] + 1 }})" class="size-6 rounded-lg hover:bg-zinc-100 flex items-center justify-center font-bold text-zinc-600" aria-label="{{ __('Increase quantity') }}">+</button>
                         </div>
 
-                        <!-- Row control and details -->
-                        <div class="flex items-center justify-between border-t border-zinc-100 pt-2 text-xs">
-                            <div class="flex items-center gap-1 bg-white rounded-xl border border-zinc-200 p-0.5">
-                                <button type="button" wire:click="updateCartQty({{ $index }}, {{ $item['quantity'] - 1 }})" class="size-6 rounded-lg hover:bg-zinc-100 flex items-center justify-center font-bold text-zinc-600" aria-label="{{ __('Decrease quantity') }}">-</button>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    step="1"
-                                    inputmode="numeric"
-                                    value="{{ $item['quantity'] }}"
-                                    @if (! $allowNegativeStock) max="{{ $item['stock'] }}" @endif
-                                    wire:change="updateCartQty({{ $index }}, $event.target.value)"
-                                    class="h-6 w-10 appearance-none bg-transparent text-center text-xs font-bold text-zinc-900 focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                                    aria-label="{{ __('Quantity') }}"
-                                />
-                                <button type="button" wire:click="updateCartQty({{ $index }}, {{ $item['quantity'] + 1 }})" class="size-6 rounded-lg hover:bg-zinc-100 flex items-center justify-center font-bold text-zinc-600" aria-label="{{ __('Increase quantity') }}">+</button>
-                            </div>
-
-                            <div class="flex items-center gap-1.5">
-                                <!-- Price toggle wholesale / retail -->
-                                <button
-                                    type="button"
-                                    class="rounded-lg px-1.5 py-0.5 text-[9px] font-bold border transition"
-                                    :class="@js($item['price_type']) === 'wholesale' ? 'bg-[#E0ECFF] text-blue-700 border-[#B6CFF7]' : 'bg-transparent text-zinc-400 border-zinc-200'"
-                                    wire:click="togglePriceType({{ $index }})"
-                                >
-                                    {{ ($item['price_type'] ?? 'retail') === 'custom' ? 'Custom' : 'WS' }}
-                                </button>
-                                <span class="font-bold text-zinc-950">Rs {{ number_format($item['subtotal'], 2) }}</span>
-                            </div>
+                        <div class="flex items-center gap-1.5">
+                            <!-- Price toggle wholesale / retail -->
+                            <button
+                                type="button"
+                                class="rounded-lg px-1.5 py-0.5 text-[9px] font-bold border transition"
+                                :class="@js($item['price_type']) === 'wholesale' ? 'bg-[#E0ECFF] text-blue-700 border-[#B6CFF7]' : 'bg-transparent text-zinc-400 border-zinc-200'"
+                                wire:click="togglePriceType({{ $index }})">
+                                {{ ($item['price_type'] ?? 'retail') === 'custom' ? 'Custom' : 'WS' }}
+                            </button>
+                            <span class="font-bold text-zinc-950">Rs {{ number_format($item['subtotal'], 2) }}</span>
                         </div>
                     </div>
+                </div>
                 @empty
-                    <div class="flex h-full flex-col items-center justify-center rounded-3xl bg-zinc-50 px-6 py-14 text-center text-sm text-zinc-400">
-                        <flux:icon.shopping-cart class="mb-3 size-10 text-zinc-300" />
-                        <p class="font-bold">{{ __('Cart is empty') }}</p>
-                        <p class="mt-1 text-xs">{{ __('Tap product cards to build the customer bill.') }}</p>
-                    </div>
+                <div class="flex h-full flex-col items-center justify-center rounded-3xl bg-zinc-50 px-6 py-14 text-center text-sm text-zinc-400">
+                    <flux:icon.shopping-cart class="mb-3 size-10 text-zinc-300" />
+                    <p class="font-bold">{{ __('Cart is empty') }}</p>
+                    <p class="mt-1 text-xs">{{ __('Tap product cards to build the customer bill.') }}</p>
+                </div>
                 @endforelse
             </div>
 
@@ -1753,18 +1734,17 @@ new #[Title('POS Terminal')] class extends Component
 
     <!-- 3. MOBILE FLOATING CART BUTTON CHIP (Only on mobile when cart > 0) -->
     @if (count($cart) > 0)
-        <div class="fixed bottom-16 right-4 z-40 lg:hidden">
-            <button
-                type="button"
-                class="flex items-center gap-2 rounded-full bg-zinc-950 px-5 py-3 font-bold text-white shadow-xl shadow-zinc-300 transition transform hover:scale-105 active:scale-95"
-                @click="mobCartOpen = true"
-            >
-                <flux:icon.shopping-cart class="size-5" />
-                <span class="text-xs">{{ count($cart) }} {{ __('items') }}</span>
-                <span class="text-xs font-semibold opacity-70">|</span>
-                <span class="text-xs">Rs {{ number_format($this->cartTotal, 0) }}</span>
-            </button>
-        </div>
+    <div class="fixed bottom-16 right-4 z-40 lg:hidden">
+        <button
+            type="button"
+            class="flex items-center gap-2 rounded-full bg-zinc-950 px-5 py-3 font-bold text-white shadow-xl shadow-zinc-300 transition transform hover:scale-105 active:scale-95"
+            @click="mobCartOpen = true">
+            <flux:icon.shopping-cart class="size-5" />
+            <span class="text-xs">{{ count($cart) }} {{ __('items') }}</span>
+            <span class="text-xs font-semibold opacity-70">|</span>
+            <span class="text-xs">Rs {{ number_format($this->cartTotal, 0) }}</span>
+        </button>
+    </div>
     @endif
 
     <div class="fixed bottom-3 left-3 right-3 z-40 lg:hidden">
@@ -1788,12 +1768,10 @@ new #[Title('POS Terminal')] class extends Component
                 <button
                     type="button"
                     @click="checkoutOpen = true"
-                    @disabled(count($cart) === 0)
-                    @class([
-                        'flex flex-col items-center gap-1 transition',
-                        'text-zinc-300' => count($cart) === 0,
+                    @disabled(count($cart)===0)
+                    @class([ 'flex flex-col items-center gap-1 transition' , 'text-zinc-300'=> count($cart) === 0,
                     ])
-                >
+                    >
                     <flux:icon.credit-card class="size-5" />
                     <span>{{ __('Pay') }}</span>
                 </button>
@@ -1811,8 +1789,7 @@ new #[Title('POS Terminal')] class extends Component
         x-transition:enter-end="opacity-100"
         x-transition:leave="ease-in duration-200"
         x-transition:leave-start="opacity-100"
-        x-transition:leave-end="opacity-0"
-    >
+        x-transition:leave-end="opacity-0">
         <div
             class="w-full max-h-[80%] bg-white rounded-t-3xl shadow-2xl flex flex-col overflow-hidden"
             @click.away="mobCartOpen = false"
@@ -1821,8 +1798,7 @@ new #[Title('POS Terminal')] class extends Component
             x-transition:enter-end="translate-y-0"
             x-transition:leave="ease-in duration-200 transform translate-y-0"
             x-transition:leave-start="translate-y-0"
-            x-transition:leave-end="translate-y-full"
-        >
+            x-transition:leave-end="translate-y-full">
             <div class="flex items-center justify-between border-b border-zinc-100 p-4 bg-zinc-50/50">
                 <h3 class="font-display font-bold text-sm text-zinc-950">{{ __('Checkout Cart') }}</h3>
                 <flux:button variant="ghost" size="sm" @click="mobCartOpen = false">
@@ -1845,19 +1821,17 @@ new #[Title('POS Terminal')] class extends Component
                     <flux:select wire:model.live="customer_id" required>
                         <option value="">{{ __('-- Select the customer --') }}</option>
                         @foreach ($this->customers as $cust)
-                            <option value="{{ $cust->id }}">{{ $cust->name }} ({{ $cust->phone ?: 'Walk-in' }})</option>
+                        <option value="{{ $cust->id }}">{{ $cust->name }} ({{ $cust->phone ?: 'Walk-in' }})</option>
                         @endforeach
                     </flux:select>
                 </div>
 
                 <div class="mt-2 flex items-center justify-between gap-3 rounded-2xl bg-zinc-50 px-3 py-2 text-xs">
                     <span class="font-bold text-zinc-500">{{ __('Previous Due') }}</span>
-                    <span @class([
-                        'font-black',
-                        'text-rose-600' => (float) ($this->selectedCustomer?->due_balance ?? 0) > 0,
+                    <span @class([ 'font-black' , 'text-rose-600'=> (float) ($this->selectedCustomer?->due_balance ?? 0) > 0,
                         'text-emerald-600' => (float) ($this->selectedCustomer?->due_balance ?? 0) <= 0,
-                    ])>
-                        Rs {{ number_format((float) ($this->selectedCustomer?->due_balance ?? 0), 2) }}
+                            ])>
+                            Rs {{ number_format((float) ($this->selectedCustomer?->due_balance ?? 0), 2) }}
                     </span>
                 </div>
             </div>
@@ -1865,55 +1839,53 @@ new #[Title('POS Terminal')] class extends Component
             <!-- Cart list scroll -->
             <div class="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
                 @foreach ($cart as $index => $item)
-                    <div class="rounded-2xl border border-zinc-100 bg-zinc-50/30 p-3 flex flex-col gap-2" wire:key="mobile-cart-item-{{ $index }}">
-                        <div class="flex justify-between items-start">
-                            <div>
-                                <button type="button" wire:click="openCartItemEditor({{ $index }})" class="text-left text-xs font-bold text-zinc-900 underline-offset-4 transition hover:text-violet-700 hover:underline">
-                                    {{ $item['name'] }}
-                                </button>
-                                <span class="text-[9px] text-zinc-400 uppercase font-mono mt-0.5">SKU: {{ $item['sku'] }}</span>
-                                @if (($item['discount_value'] ?? 0) > 0)
-                                    <span class="mt-1 block text-[9px] font-bold uppercase tracking-wide text-emerald-600">
-                                        {{ __('Discount') }}:
-                                        {{ ($item['discount_type'] ?? 'fixed') === 'percentage' ? number_format($item['discount_value'], 2) . '%' : 'Rs ' . number_format($item['discount_value'], 2) }}
-                                    </span>
-                                @endif
-                            </div>
-                            <button type="button" wire:click="removeCartRow({{ $index }})" class="text-xs font-semibold text-rose-500">
-                                Remove
+                <div class="rounded-2xl border border-zinc-100 bg-zinc-50/30 p-3 flex flex-col gap-2" wire:key="mobile-cart-item-{{ $index }}">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <button type="button" wire:click="openCartItemEditor({{ $index }})" class="text-left text-xs font-bold text-zinc-900 underline-offset-4 transition hover:text-violet-700 hover:underline">
+                                {{ $item['name'] }}
                             </button>
+                            <span class="text-[9px] text-zinc-400 uppercase font-mono mt-0.5">SKU: {{ $item['sku'] }}</span>
+                            @if (($item['discount_value'] ?? 0) > 0)
+                            <span class="mt-1 block text-[9px] font-bold uppercase tracking-wide text-emerald-600">
+                                {{ __('Discount') }}:
+                                {{ ($item['discount_type'] ?? 'fixed') === 'percentage' ? number_format($item['discount_value'], 2) . '%' : 'Rs ' . number_format($item['discount_value'], 2) }}
+                            </span>
+                            @endif
+                        </div>
+                        <button type="button" wire:click="removeCartRow({{ $index }})" class="text-xs font-semibold text-rose-500">
+                            Remove
+                        </button>
+                    </div>
+
+                    <div class="flex items-center justify-between border-t border-zinc-100 pt-2 text-xs">
+                        <div class="flex items-center gap-1 bg-white rounded-xl border border-zinc-200 p-0.5">
+                            <button type="button" wire:click="updateCartQty({{ $index }}, {{ $item['quantity'] - 1 }})" class="size-6 rounded-lg flex items-center justify-center font-bold text-zinc-600" aria-label="{{ __('Decrease quantity') }}">-</button>
+                            <input
+                                type="number"
+                                min="1"
+                                step="1"
+                                inputmode="numeric"
+                                value="{{ $item['quantity'] }}"
+                                @if (! $allowNegativeStock) max="{{ $item['stock'] }}" @endif
+                                wire:change="updateCartQty({{ $index }}, $event.target.value)"
+                                class="h-6 w-10 appearance-none bg-transparent text-center text-xs font-bold text-zinc-900 focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                aria-label="{{ __('Quantity') }}" />
+                            <button type="button" wire:click="updateCartQty({{ $index }}, {{ $item['quantity'] + 1 }})" class="size-6 rounded-lg flex items-center justify-center font-bold text-zinc-600" aria-label="{{ __('Increase quantity') }}">+</button>
                         </div>
 
-                        <div class="flex items-center justify-between border-t border-zinc-100 pt-2 text-xs">
-                            <div class="flex items-center gap-1 bg-white rounded-xl border border-zinc-200 p-0.5">
-                                <button type="button" wire:click="updateCartQty({{ $index }}, {{ $item['quantity'] - 1 }})" class="size-6 rounded-lg flex items-center justify-center font-bold text-zinc-600" aria-label="{{ __('Decrease quantity') }}">-</button>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    step="1"
-                                    inputmode="numeric"
-                                    value="{{ $item['quantity'] }}"
-                                    @if (! $allowNegativeStock) max="{{ $item['stock'] }}" @endif
-                                    wire:change="updateCartQty({{ $index }}, $event.target.value)"
-                                    class="h-6 w-10 appearance-none bg-transparent text-center text-xs font-bold text-zinc-900 focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                                    aria-label="{{ __('Quantity') }}"
-                                />
-                                <button type="button" wire:click="updateCartQty({{ $index }}, {{ $item['quantity'] + 1 }})" class="size-6 rounded-lg flex items-center justify-center font-bold text-zinc-600" aria-label="{{ __('Increase quantity') }}">+</button>
-                            </div>
-
-                            <div class="flex items-center gap-2">
-                                <button
-                                    type="button"
-                                    class="rounded-lg px-1.5 py-0.5 text-[9px] font-bold border transition"
-                                    :class="@js($item['price_type']) === 'wholesale' ? 'bg-[#E0ECFF] text-blue-700 border-[#B6CFF7]' : 'bg-transparent text-zinc-400 border-zinc-200'"
-                                    wire:click="togglePriceType({{ $index }})"
-                                >
-                                    {{ ($item['price_type'] ?? 'retail') === 'custom' ? 'Custom' : 'Wholesale' }}
-                                </button>
-                                <span class="font-bold text-zinc-950">Rs {{ number_format($item['subtotal'], 2) }}</span>
-                            </div>
+                        <div class="flex items-center gap-2">
+                            <button
+                                type="button"
+                                class="rounded-lg px-1.5 py-0.5 text-[9px] font-bold border transition"
+                                :class="@js($item['price_type']) === 'wholesale' ? 'bg-[#E0ECFF] text-blue-700 border-[#B6CFF7]' : 'bg-transparent text-zinc-400 border-zinc-200'"
+                                wire:click="togglePriceType({{ $index }})">
+                                {{ ($item['price_type'] ?? 'retail') === 'custom' ? 'Custom' : 'Wholesale' }}
+                            </button>
+                            <span class="font-bold text-zinc-950">Rs {{ number_format($item['subtotal'], 2) }}</span>
                         </div>
                     </div>
+                </div>
                 @endforeach
             </div>
 
@@ -1946,8 +1918,7 @@ new #[Title('POS Terminal')] class extends Component
         x-transition:enter-end="opacity-100"
         x-transition:leave="ease-in duration-150"
         x-transition:leave-start="opacity-100"
-        x-transition:leave-end="opacity-0"
-    >
+        x-transition:leave-end="opacity-0">
         <form
             wire:submit="saveQuickCustomer"
             class="w-full max-w-md rounded-[2rem] bg-white p-5 shadow-2xl"
@@ -1957,8 +1928,7 @@ new #[Title('POS Terminal')] class extends Component
             x-transition:enter-end="translate-y-0 scale-100"
             x-transition:leave="ease-in duration-150 transform"
             x-transition:leave-start="translate-y-0 scale-100"
-            x-transition:leave-end="translate-y-4 scale-95"
-        >
+            x-transition:leave-end="translate-y-4 scale-95">
             <div class="flex items-start justify-between gap-4 border-b border-zinc-100 pb-4">
                 <div>
                     <p class="text-[10px] font-black uppercase tracking-widest text-violet-500">{{ __('New customer') }}</p>
@@ -1999,8 +1969,7 @@ new #[Title('POS Terminal')] class extends Component
         x-transition:enter-end="opacity-100"
         x-transition:leave="ease-in duration-150"
         x-transition:leave-start="opacity-100"
-        x-transition:leave-end="opacity-0"
-    >
+        x-transition:leave-end="opacity-0">
         <form
             x-data="{
                 qty: Number($wire.editQuantity) || 1,
@@ -2041,8 +2010,7 @@ new #[Title('POS Terminal')] class extends Component
             x-transition:enter-end="translate-y-0 scale-100"
             x-transition:leave="ease-in duration-150 transform"
             x-transition:leave-start="translate-y-0 scale-100"
-            x-transition:leave-end="translate-y-4 scale-95"
-        >
+            x-transition:leave-end="translate-y-4 scale-95">
             <div class="flex items-start justify-between gap-4 border-b border-zinc-100 pb-4">
                 <div class="min-w-0">
                     <p class="text-[10px] font-black uppercase tracking-widest text-violet-500">{{ __('Edit cart item') }}</p>
@@ -2104,8 +2072,7 @@ new #[Title('POS Terminal')] class extends Component
         x-transition:enter-end="opacity-100"
         x-transition:leave="ease-in duration-200"
         x-transition:leave-start="opacity-100"
-        x-transition:leave-end="opacity-0"
-    >
+        x-transition:leave-end="opacity-0">
         <div
             class="flex max-h-[95%] w-full max-w-md flex-col overflow-hidden rounded-3xl bg-white shadow-2xl sm:max-h-[90vh] lg:max-w-xl"
             @click.away="checkoutOpen = false"
@@ -2114,8 +2081,7 @@ new #[Title('POS Terminal')] class extends Component
             x-transition:enter-end="translate-y-0 scale-100"
             x-transition:leave="ease-in duration-200 transform"
             x-transition:leave-start="translate-y-0 scale-100"
-            x-transition:leave-end="translate-y-6 scale-95"
-        >
+            x-transition:leave-end="translate-y-6 scale-95">
             <div class="flex items-center justify-between border-b border-zinc-100 p-5 bg-zinc-50/50">
                 <h3 class="font-display font-bold text-zinc-950">{{ __('Checkout Terminal') }}</h3>
                 <flux:button variant="ghost" size="sm" wire:click="$set('checkoutOpen', false)">
@@ -2140,13 +2106,13 @@ new #[Title('POS Terminal')] class extends Component
                         <flux:select wire:model.live="customer_id" required>
                             <option value="">{{ __('-- Select the customer --') }}</option>
                             @foreach ($this->customers as $cust)
-                                <option value="{{ $cust->id }}">{{ $cust->name }} ({{ $cust->phone ?: 'Walk-in' }})</option>
+                            <option value="{{ $cust->id }}">{{ $cust->name }} ({{ $cust->phone ?: 'Walk-in' }})</option>
                             @endforeach
                         </flux:select>
                         @if ($this->selectedCustomer)
-                            <p class="mt-2 text-xs font-bold text-zinc-700">
-                                {{ __('Selected') }}: {{ $this->selectedCustomer->name }}
-                            </p>
+                        <p class="mt-2 text-xs font-bold text-zinc-700">
+                            {{ __('Selected') }}: {{ $this->selectedCustomer->name }}
+                        </p>
                         @endif
                     </div>
                 </div>
@@ -2176,110 +2142,107 @@ new #[Title('POS Terminal')] class extends Component
                 </div>
 
                 <div class="rounded-3xl border border-rose-100 bg-rose-50/50 p-4">
-                        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                            <div>
-                                <h4 class="text-xs font-black uppercase tracking-wider text-rose-500">{{ __('Return / Bill Credit') }}</h4>
-                                <p class="mt-1 text-xs font-semibold leading-relaxed text-rose-700">
-                                    {{ __('Search products sold to the selected customer and subtract the returned value from this bill.') }}
-                                </p>
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <h4 class="text-xs font-black uppercase tracking-wider text-rose-500">{{ __('Return / Bill Credit') }}</h4>
+                            <p class="mt-1 text-xs font-semibold leading-relaxed text-rose-700">
+                                {{ __('Search products sold to the selected customer and subtract the returned value from this bill.') }}
+                            </p>
+                        </div>
+                        <div class="shrink-0 rounded-2xl bg-white px-3 py-2 text-xs font-black text-rose-600 ring-1 ring-rose-100">
+                            - Rs {{ number_format($this->returnCreditsTotal, 2) }}
+                        </div>
+                    </div>
+
+                    @if (blank($customer_id))
+                    <p class="mt-3 rounded-2xl bg-white px-3 py-2 text-xs font-bold text-zinc-500 ring-1 ring-zinc-100">
+                        {{ __('Select the customer first to load their previous sold products.') }}
+                    </p>
+                    @else
+                    <div class="mt-3">
+                        <flux:input wire:model.live.debounce.250ms="returnSearch" placeholder="Search previous bill, product, or SKU..." />
+                    </div>
+
+                    @if (filled($returnSearch) && $this->returnCandidates->isNotEmpty())
+                    <div class="mt-3 grid gap-2">
+                        @foreach ($this->returnCandidates as $saleItem)
+                        @php($returnableQty = $this->maxReturnableQuantityForSaleItem($saleItem))
+                        <button
+                            type="button"
+                            wire:click="addReturnCredit({{ $saleItem->id }})"
+                            class="rounded-2xl border border-rose-100 bg-white p-3 text-left shadow-sm transition active:scale-[0.99]"
+                            wire:key="return-candidate-{{ $saleItem->id }}">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="truncate text-sm font-black text-zinc-950">{{ $saleItem->product?->name }}</p>
+                                    <p class="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-zinc-400">
+                                        {{ $saleItem->sale?->invoice_no }} · {{ $saleItem->sale?->date?->format('Y-m-d') }} · SKU {{ $saleItem->product?->sku ?: '-' }}
+                                    </p>
+                                </div>
+                                <div class="shrink-0 text-right">
+                                    <p class="text-[10px] font-bold uppercase text-zinc-400">{{ __('Returnable') }}</p>
+                                    <p class="text-sm font-black text-rose-600">{{ $returnableQty }}</p>
+                                </div>
                             </div>
-                            <div class="shrink-0 rounded-2xl bg-white px-3 py-2 text-xs font-black text-rose-600 ring-1 ring-rose-100">
-                                - Rs {{ number_format($this->returnCreditsTotal, 2) }}
+                        </button>
+                        @endforeach
+                    </div>
+                    @elseif (filled($returnSearch))
+                    <p class="mt-3 rounded-2xl bg-white px-3 py-2 text-xs font-bold text-zinc-500 ring-1 ring-zinc-100">
+                        {{ __('No returnable sold products found for this customer.') }}
+                    </p>
+                    @endif
+                    @endif
+
+                    @error('returnCredits')
+                    <p class="mt-3 rounded-2xl border border-rose-200 bg-white px-3 py-2 text-xs font-bold text-rose-700">{{ $message }}</p>
+                    @enderror
+
+                    @if (count($returnCredits) > 0)
+                    <div class="mt-3 grid gap-3">
+                        @foreach ($returnCredits as $key => $returnCredit)
+                        <div class="rounded-3xl border border-rose-100 bg-white p-4 shadow-sm" wire:key="return-credit-{{ $key }}">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="truncate text-sm font-black text-zinc-950">{{ $returnCredit['name'] }}</p>
+                                    <p class="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-zinc-400">
+                                        {{ $returnCredit['invoice_no'] }} · {{ __('Returnable') }} {{ $returnCredit['max'] }}
+                                    </p>
+                                </div>
+                                <button type="button" wire:click="removeReturnCredit('{{ $key }}')" class="text-xs font-black text-rose-500 transition active:scale-95">
+                                    {{ __('Remove') }}
+                                </button>
+                            </div>
+
+                            <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                                <flux:input
+                                    value="{{ $returnCredit['quantity'] }}"
+                                    :label="__('Return Qty')"
+                                    type="number"
+                                    min="1"
+                                    max="{{ $returnCredit['max'] }}"
+                                    step="1"
+                                    inputmode="numeric"
+                                    wire:change="updateReturnCreditQty('{{ $key }}', $event.target.value)" />
+                                <flux:input
+                                    value="{{ $returnCredit['return_price'] }}"
+                                    :label="__('Return Price (Rs)')"
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    inputmode="decimal"
+                                    wire:change="updateReturnCreditPrice('{{ $key }}', $event.target.value)" />
+                            </div>
+
+                            <div class="mt-3 flex items-center justify-between rounded-2xl bg-rose-50 px-3 py-2 text-xs">
+                                <span class="font-bold text-rose-700">{{ __('Bill Credit') }}</span>
+                                <span class="font-black text-rose-700">- Rs {{ number_format((float) $returnCredit['subtotal'], 2) }}</span>
                             </div>
                         </div>
-
-                        @if (blank($customer_id))
-                            <p class="mt-3 rounded-2xl bg-white px-3 py-2 text-xs font-bold text-zinc-500 ring-1 ring-zinc-100">
-                                {{ __('Select the customer first to load their previous sold products.') }}
-                            </p>
-                        @else
-                            <div class="mt-3">
-                                <flux:input wire:model.live.debounce.250ms="returnSearch" placeholder="Search previous bill, product, or SKU..." />
-                            </div>
-
-                            @if (filled($returnSearch) && $this->returnCandidates->isNotEmpty())
-                                <div class="mt-3 grid gap-2">
-                                    @foreach ($this->returnCandidates as $saleItem)
-                                        @php($returnableQty = $this->maxReturnableQuantityForSaleItem($saleItem))
-                                        <button
-                                            type="button"
-                                            wire:click="addReturnCredit({{ $saleItem->id }})"
-                                            class="rounded-2xl border border-rose-100 bg-white p-3 text-left shadow-sm transition active:scale-[0.99]"
-                                            wire:key="return-candidate-{{ $saleItem->id }}"
-                                        >
-                                            <div class="flex items-start justify-between gap-3">
-                                                <div class="min-w-0">
-                                                    <p class="truncate text-sm font-black text-zinc-950">{{ $saleItem->product?->name }}</p>
-                                                    <p class="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-zinc-400">
-                                                        {{ $saleItem->sale?->invoice_no }} · {{ $saleItem->sale?->date?->format('Y-m-d') }} · SKU {{ $saleItem->product?->sku ?: '-' }}
-                                                    </p>
-                                                </div>
-                                                <div class="shrink-0 text-right">
-                                                    <p class="text-[10px] font-bold uppercase text-zinc-400">{{ __('Returnable') }}</p>
-                                                    <p class="text-sm font-black text-rose-600">{{ $returnableQty }}</p>
-                                                </div>
-                                            </div>
-                                        </button>
-                                    @endforeach
-                                </div>
-                            @elseif (filled($returnSearch))
-                                <p class="mt-3 rounded-2xl bg-white px-3 py-2 text-xs font-bold text-zinc-500 ring-1 ring-zinc-100">
-                                    {{ __('No returnable sold products found for this customer.') }}
-                                </p>
-                            @endif
-                        @endif
-
-                        @error('returnCredits')
-                            <p class="mt-3 rounded-2xl border border-rose-200 bg-white px-3 py-2 text-xs font-bold text-rose-700">{{ $message }}</p>
-                        @enderror
-
-                        @if (count($returnCredits) > 0)
-                            <div class="mt-3 grid gap-3">
-                                @foreach ($returnCredits as $key => $returnCredit)
-                                    <div class="rounded-3xl border border-rose-100 bg-white p-4 shadow-sm" wire:key="return-credit-{{ $key }}">
-                                        <div class="flex items-start justify-between gap-3">
-                                            <div class="min-w-0">
-                                                <p class="truncate text-sm font-black text-zinc-950">{{ $returnCredit['name'] }}</p>
-                                                <p class="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-zinc-400">
-                                                    {{ $returnCredit['invoice_no'] }} · {{ __('Returnable') }} {{ $returnCredit['max'] }}
-                                                </p>
-                                            </div>
-                                            <button type="button" wire:click="removeReturnCredit('{{ $key }}')" class="text-xs font-black text-rose-500 transition active:scale-95">
-                                                {{ __('Remove') }}
-                                            </button>
-                                        </div>
-
-                                        <div class="mt-3 grid gap-3 sm:grid-cols-2">
-                                            <flux:input
-                                                value="{{ $returnCredit['quantity'] }}"
-                                                :label="__('Return Qty')"
-                                                type="number"
-                                                min="1"
-                                                max="{{ $returnCredit['max'] }}"
-                                                step="1"
-                                                inputmode="numeric"
-                                                wire:change="updateReturnCreditQty('{{ $key }}', $event.target.value)"
-                                            />
-                                            <flux:input
-                                                value="{{ $returnCredit['return_price'] }}"
-                                                :label="__('Return Price (Rs)')"
-                                                type="number"
-                                                min="0"
-                                                step="0.01"
-                                                inputmode="decimal"
-                                                wire:change="updateReturnCreditPrice('{{ $key }}', $event.target.value)"
-                                            />
-                                        </div>
-
-                                        <div class="mt-3 flex items-center justify-between rounded-2xl bg-rose-50 px-3 py-2 text-xs">
-                                            <span class="font-bold text-rose-700">{{ __('Bill Credit') }}</span>
-                                            <span class="font-black text-rose-700">- Rs {{ number_format((float) $returnCredit['subtotal'], 2) }}</span>
-                                        </div>
-                                    </div>
-                                @endforeach
-                            </div>
-                        @endif
+                        @endforeach
                     </div>
+                    @endif
+                </div>
 
                 <!-- Payment details -->
                 <div class="flex flex-col gap-3">
@@ -2298,69 +2261,69 @@ new #[Title('POS Terminal')] class extends Component
                     </div>
 
                     @error('paymentRows')
-                        <p class="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700">{{ $message }}</p>
+                    <p class="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700">{{ $message }}</p>
                     @enderror
 
                     <div class="grid gap-3">
                         @foreach ($paymentRows as $index => $paymentRow)
-                            <div wire:key="checkout-payment-row-{{ $index }}" class="rounded-3xl border border-zinc-100 bg-white p-4 shadow-sm">
-                                <div class="mb-3 flex items-start justify-between gap-3">
-                                    <div>
-                                        <p class="text-[10px] font-black uppercase tracking-widest text-zinc-400">
-                                            {{ __('Payment') }} #{{ $index + 1 }}
-                                        </p>
-                                        <p class="mt-0.5 text-xs font-semibold text-zinc-500">
-                                            {{ __('Cash, card, QR, bank transfer, or cheque') }}
-                                        </p>
-                                    </div>
-                                    @if (count($paymentRows) > 1)
-                                        <button type="button" wire:click="removePaymentRow({{ $index }})" class="text-xs font-black text-rose-500 transition active:scale-95">
-                                            {{ __('Remove') }}
-                                        </button>
-                                    @endif
+                        <div wire:key="checkout-payment-row-{{ $index }}" class="rounded-3xl border border-zinc-100 bg-white p-4 shadow-sm">
+                            <div class="mb-3 flex items-start justify-between gap-3">
+                                <div>
+                                    <p class="text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                                        {{ __('Payment') }} #{{ $index + 1 }}
+                                    </p>
+                                    <p class="mt-0.5 text-xs font-semibold text-zinc-500">
+                                        {{ __('Cash, card, QR, bank transfer, or cheque') }}
+                                    </p>
                                 </div>
-
-                                <div class="grid gap-3 sm:grid-cols-2">
-                                    <flux:input wire:model.live.number="paymentRows.{{ $index }}.amount" :label="__('Amount (Rs)')" type="number" min="0" step="0.01" required inputmode="decimal" />
-                                    <flux:select wire:model.live="paymentRows.{{ $index }}.method" :label="__('Payment Mode')">
-                                        <option value="cash">{{ __('Cash Settlement') }}</option>
-                                        <option value="card">{{ __('Business Card Swipe') }}</option>
-                                        <option value="qr">{{ __('LankaQR scan') }}</option>
-                                        <option value="bank_transfer">{{ __('Direct Bank Deposit') }}</option>
-                                        <option value="cheque">{{ __('Cheque Payment Hold') }}</option>
-                                    </flux:select>
-                                </div>
-
-                                @if (($paymentRow['method'] ?? 'cash') === 'qr')
-                                    <div class="mt-3 flex flex-col items-center justify-center gap-2 rounded-2xl border border-zinc-100 bg-zinc-50/70 p-4">
-                                        <div class="flex size-28 items-center justify-center rounded-xl border border-dashed border-zinc-300 bg-white shadow-sm">
-                                            <flux:icon.qr-code class="size-20 text-zinc-900" />
-                                        </div>
-                                        <span class="text-[10px] font-bold uppercase tracking-wider text-zinc-400">LANKAQR MOCK SCAN</span>
-                                    </div>
-                                @elseif (($paymentRow['method'] ?? 'cash') === 'cheque')
-                                    <div class="mt-3 rounded-3xl border border-amber-100 bg-amber-50/70 p-4">
-                                        <div class="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-wider text-amber-700">
-                                            <flux:icon.banknotes class="size-4" />
-                                            {{ __('Cheque details') }}
-                                        </div>
-                                        <div class="grid gap-3 sm:grid-cols-2">
-                                            <flux:input wire:model="paymentRows.{{ $index }}.cheque_no" :label="__('Cheque No')" placeholder="Cheque number" />
-                                            <flux:input wire:model="paymentRows.{{ $index }}.cheque_bank" :label="__('Bank (optional)')" placeholder="Bank name" />
-                                            <div class="sm:col-span-2">
-                                                <flux:input wire:model="paymentRows.{{ $index }}.cheque_date" :label="__('Cheque Date')" type="date" required />
-                                            </div>
-                                        </div>
-                                        <p class="mt-3 text-xs font-semibold leading-relaxed text-amber-800">
-                                            {{ __('Cheque payments stay as hold amount until marked passed. They do not increase customer due unless the payment split is short.') }}
-                                        </p>
-                                    </div>
-                                @elseif ((float) ($paymentRow['amount'] ?? 0) > 0)
-                                    <div class="mt-3">
-                                        <flux:input wire:model="paymentRows.{{ $index }}.reference" :label="__('Payment Slip # / Transaction Reference')" placeholder="Receipt, slip, or TxID" />
-                                    </div>
+                                @if (count($paymentRows) > 1)
+                                <button type="button" wire:click="removePaymentRow({{ $index }})" class="text-xs font-black text-rose-500 transition active:scale-95">
+                                    {{ __('Remove') }}
+                                </button>
                                 @endif
                             </div>
+
+                            <div class="grid gap-3 sm:grid-cols-2">
+                                <flux:input wire:model.live.number="paymentRows.{{ $index }}.amount" :label="__('Amount (Rs)')" type="number" min="0" step="0.01" required inputmode="decimal" />
+                                <flux:select wire:model.live="paymentRows.{{ $index }}.method" :label="__('Payment Mode')">
+                                    <option value="cash">{{ __('Cash Settlement') }}</option>
+                                    <option value="card">{{ __('Business Card Swipe') }}</option>
+                                    <option value="qr">{{ __('LankaQR scan') }}</option>
+                                    <option value="bank_transfer">{{ __('Direct Bank Deposit') }}</option>
+                                    <option value="cheque">{{ __('Cheque Payment Hold') }}</option>
+                                </flux:select>
+                            </div>
+
+                            @if (($paymentRow['method'] ?? 'cash') === 'qr')
+                            <div class="mt-3 flex flex-col items-center justify-center gap-2 rounded-2xl border border-zinc-100 bg-zinc-50/70 p-4">
+                                <div class="flex size-28 items-center justify-center rounded-xl border border-dashed border-zinc-300 bg-white shadow-sm">
+                                    <flux:icon.qr-code class="size-20 text-zinc-900" />
+                                </div>
+                                <span class="text-[10px] font-bold uppercase tracking-wider text-zinc-400">LANKAQR MOCK SCAN</span>
+                            </div>
+                            @elseif (($paymentRow['method'] ?? 'cash') === 'cheque')
+                            <div class="mt-3 rounded-3xl border border-amber-100 bg-amber-50/70 p-4">
+                                <div class="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-wider text-amber-700">
+                                    <flux:icon.banknotes class="size-4" />
+                                    {{ __('Cheque details') }}
+                                </div>
+                                <div class="grid gap-3 sm:grid-cols-2">
+                                    <flux:input wire:model="paymentRows.{{ $index }}.cheque_no" :label="__('Cheque No')" placeholder="Cheque number" />
+                                    <flux:input wire:model="paymentRows.{{ $index }}.cheque_bank" :label="__('Bank (optional)')" placeholder="Bank name" />
+                                    <div class="sm:col-span-2">
+                                        <flux:input wire:model="paymentRows.{{ $index }}.cheque_date" :label="__('Cheque Date')" type="date" required />
+                                    </div>
+                                </div>
+                                <p class="mt-3 text-xs font-semibold leading-relaxed text-amber-800">
+                                    {{ __('Cheque payments stay as hold amount until marked passed. They do not increase customer due unless the payment split is short.') }}
+                                </p>
+                            </div>
+                            @elseif ((float) ($paymentRow['amount'] ?? 0) > 0)
+                            <div class="mt-3">
+                                <flux:input wire:model="paymentRows.{{ $index }}.reference" :label="__('Payment Slip # / Transaction Reference')" placeholder="Receipt, slip, or TxID" />
+                            </div>
+                            @endif
+                        </div>
                         @endforeach
                     </div>
 
@@ -2399,8 +2362,7 @@ new #[Title('POS Terminal')] class extends Component
         x-transition:enter-end="opacity-100"
         x-transition:leave="ease-in duration-200"
         x-transition:leave-start="opacity-100"
-        x-transition:leave-end="opacity-0"
-    >
+        x-transition:leave-end="opacity-0">
         <div
             class="w-full max-w-sm bg-white rounded-3xl shadow-2xl p-6 text-center flex flex-col items-center gap-4"
             x-transition:enter="ease-out duration-300 transform scale-90"
@@ -2408,8 +2370,7 @@ new #[Title('POS Terminal')] class extends Component
             x-transition:enter-end="scale-100"
             x-transition:leave="ease-in duration-200 transform scale-100"
             x-transition:leave-start="scale-100"
-            x-transition:leave-end="scale-90"
-        >
+            x-transition:leave-end="scale-90">
             <!-- Animated Green Success Checkmark -->
             <div class="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 border-2 border-emerald-400 animate-bounce">
                 <flux:icon.check class="size-8 text-emerald-600" />
@@ -2434,10 +2395,10 @@ new #[Title('POS Terminal')] class extends Component
 
                 <!-- SMS confirmation trigger -->
                 @if ($this->completedSale?->customer?->phone && $this->completedSale?->customer?->phone !== '0000000000')
-                    <flux:button type="button" wire:click="triggerSMSNotification" variant="ghost" class="w-full border-dashed">
-                        <flux:icon.bolt class="size-4 mr-1 text-blue-600" />
-                        {{ __('Resend Confirmation SMS') }}
-                    </flux:button>
+                <flux:button type="button" wire:click="triggerSMSNotification" variant="ghost" class="w-full border-dashed">
+                    <flux:icon.bolt class="size-4 mr-1 text-blue-600" />
+                    {{ __('Resend Confirmation SMS') }}
+                </flux:button>
                 @endif
 
                 <flux:button type="button" wire:click="closeSuccess" variant="ghost" class="w-full">
@@ -2448,7 +2409,7 @@ new #[Title('POS Terminal')] class extends Component
     </div>
 
     @if ($this->completedSale)
-        <pre x-ref="shareBillText" class="sr-only">IMRAN POS BILL
+    <pre x-ref="shareBillText" class="sr-only">IMRAN POS BILL
 {{ Setting::get('business_name') }}
 Invoice: {{ $this->completedSale->invoice_no }}
 Date: {{ $this->completedSale->date->format('Y-m-d H:i') }}
@@ -2472,127 +2433,150 @@ Due: Rs {{ number_format($this->completedSale->due_amount, 2) }}
 
 {{ Setting::get('invoice_footer_note') }}</pre>
     <!-- 7. PRINT RECEIPT TEMPLATES -->
-        <?php
-            $invoicePaperSize = Setting::get('invoice_paper_size', 'thermal_80mm');
-            $devName = trim((string) config('app.dev_name', ''));
-            $thermalWidth = $invoicePaperSize === 'thermal_58mm' ? '58mm' : '80mm';
-            $thermalPageSize = $invoicePaperSize === 'thermal_58mm' ? '58mm 210mm' : '80mm 297mm';
-            $businessReceiptPhones = collect([Setting::get('business_phone'), Setting::get('business_phone_2')])
-                ->filter(fn ($value): bool => filled($value))
-                ->implode(' / ');
-            $businessBrNumber = Setting::get('business_br_number');
-            $businessLogo = Setting::get('business_logo');
-            $showBusinessLogo = Setting::get('invoice_show_logo', '1') !== '0';
-            $businessLogoUrl = ($showBusinessLogo && $businessLogo) ? Storage::url($businessLogo) : null;
-        ?>
+    <?php
+    $invoicePaperSize = Setting::get('invoice_paper_size', 'thermal_80mm');
+    $devName = trim((string) config('app.dev_name', ''));
+    $thermalWidth = $invoicePaperSize === 'thermal_58mm' ? '58mm' : '80mm';
+    $thermalPageSize = $invoicePaperSize === 'thermal_58mm' ? '58mm 210mm' : '80mm 297mm';
+    $businessReceiptPhones = collect([Setting::get('business_phone'), Setting::get('business_phone_2')])
+        ->filter(fn($value): bool => filled($value))
+        ->implode(' / ');
+    $businessBrNumber = Setting::get('business_br_number');
+    $businessLogo = Setting::get('business_logo');
+    $showBusinessLogo = Setting::get('invoice_show_logo', '1') !== '0';
+    $businessLogoUrl = ($showBusinessLogo && $businessLogo) ? Storage::url($businessLogo) : null;
+    ?>
 
-        @if ($invoicePaperSize === 'A4')
-            @include('partials.a4-invoice', ['sale' => $this->completedSale, 'devName' => $devName])
-        @else
-            <div id="thermal-receipt-template" class="hidden bg-white font-mono text-[10px] leading-tight text-black print:block" style="width: {{ $thermalWidth }}; max-width: {{ $thermalWidth }};">
-                <style>
-                    @media print {
-                        @page {
-                            size: {{ $thermalPageSize }};
-                            margin: 0;
-                        }
-
-                        body * {
-                            visibility: hidden !important;
-                        }
-                        #thermal-receipt-template, #thermal-receipt-template * {
-                            visibility: visible !important;
-                        }
-                        #thermal-receipt-template {
-                            position: fixed !important;
-                            left: 0 !important;
-                            top: 0 !important;
-                            width: {{ $thermalWidth }} !important;
-                            max-width: {{ $thermalWidth }} !important;
-                            margin: 0 !important;
-                            padding: 2mm !important;
-                            background: white !important;
-                            z-index: 9999999 !important;
+    @if ($invoicePaperSize === 'A4')
+    @include('partials.a4-invoice', ['sale' => $this->completedSale, 'devName' => $devName])
+    @else
+    <div id="thermal-receipt-template" class="hidden bg-white font-mono text-[10px] leading-tight text-black print:block" style="width: {{ $thermalWidth }}; max-width: {{ $thermalWidth }};">
+        <style>
+            @media print {
+                @page {
+                    size: {
+                            {
+                            $thermalPageSize
                         }
                     }
-                </style>
 
-                <div class="text-center mb-3">
-                    @if ($businessLogoUrl)
-                        <div class="mx-auto mb-1 overflow-hidden bg-white" style="display: flex; width: 16mm !important; height: 12mm !important; align-items: center; justify-content: center;">
-                            <img src="{{ $businessLogoUrl }}" alt="{{ Setting::get('business_name') }}" style="display: block; width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; object-fit: contain !important;">
-                        </div>
-                    @endif
-                    <h2 class="font-bold text-sm tracking-wide">{{ Setting::get('business_name') }}</h2>
-                    <p class="text-[9px] mt-0.5">{{ Setting::get('business_address') }}</p>
-                    @if ($businessReceiptPhones)
-                        <p class="text-[9px] mt-0.5">Tel: {{ $businessReceiptPhones }}</p>
-                    @endif
-                    @if ($businessBrNumber)
-                        <p class="text-[9px] mt-0.5">BR No: {{ $businessBrNumber }}</p>
-                    @endif
-                </div>
+                    ;
+                    margin: 0;
+                }
 
-                <div class="border-b border-dashed border-zinc-400 pb-2 mb-2">
-                    <p>Invoice: <span class="font-bold">{{ $this->completedSale->invoice_no }}</span></p>
-                    <p>Date: {{ $this->completedSale->date->format('Y-m-d H:i') }}</p>
-                    <p>Customer: {{ $this->completedSale->customer?->name }}</p>
-                    @if ($this->completedSale->customer?->phone)
-                        <p>Phone: {{ $this->completedSale->customer?->phone }}</p>
-                    @endif
-                </div>
+                body * {
+                    visibility: hidden !important;
+                }
 
-                <!-- Items Table -->
-                <div class="border-b border-dashed border-zinc-400 pb-2 mb-2 flex flex-col gap-1.5">
-                    @foreach ($this->completedSale->items as $item)
-                        <div class="flex justify-between">
-                            <div>
-                                <p class="font-bold">{{ $item->product?->name }}</p>
-                                <p class="text-[9px] text-zinc-600">{{ $item->quantity }} x Rs {{ number_format($item->selling_price, 2) }}</p>
-                            </div>
-                            <p class="font-bold">Rs {{ number_format($item->subtotal, 2) }}</p>
-                        </div>
-                    @endforeach
-                </div>
+                #thermal-receipt-template,
+                #thermal-receipt-template * {
+                    visibility: visible !important;
+                }
 
-                <!-- Financials summary -->
-                <div class="flex flex-col gap-1 text-right mb-4">
-                    <div class="flex justify-between">
-                        <span>Subtotal</span>
-                        <span>Rs {{ number_format($this->completedSale->subtotal_amount, 2) }}</span>
-                    </div>
-                    @if ($this->completedSale->discount_amount > 0)
-                        <div class="flex justify-between">
-                            <span>Discount</span>
-                            <span>- Rs {{ number_format($this->completedSale->discount_amount, 2) }}</span>
-                        </div>
-                    @endif
-                    <div class="flex justify-between font-bold text-xs border-t border-dashed border-zinc-400 pt-1">
-                        <span>Grand Total</span>
-                        <span>Rs {{ number_format($this->completedSale->grand_total, 2) }}</span>
-                    </div>
-                    <div class="flex justify-between text-zinc-700">
-                        <span>Amount Paid</span>
-                        <span>Rs {{ number_format($this->completedSale->paid_amount, 2) }}</span>
-                    </div>
-                    <div class="flex justify-between text-zinc-700">
-                        <span>Due Balance</span>
-                        <span>Rs {{ number_format($this->completedSale->due_amount, 2) }}</span>
-                    </div>
-                </div>
+                #thermal-receipt-template {
+                    position: fixed !important;
+                    left: 0 !important;
+                    top: 0 !important;
 
-                <div class="text-center text-[9px] leading-snug">
-                    <p class="font-semibold">{{ Setting::get('invoice_footer_note') }}</p>
-                    @if ($devName !== '')
-                        <p class="text-[8px] text-zinc-600 mt-2">Powered by {{ $devName }}</p>
-                    @endif
-                </div>
+                    width: {
+                            {
+                            $thermalWidth
+                        }
+                    }
+
+                    !important;
+
+                    max-width: {
+                            {
+                            $thermalWidth
+                        }
+                    }
+
+                    !important;
+                    margin: 0 !important;
+                    padding: 2mm !important;
+                    background: white !important;
+                    z-index: 9999999 !important;
+                }
+            }
+        </style>
+
+        <div class="text-center mb-3">
+            @if ($businessLogoUrl)
+            <div class="mx-auto mb-1 overflow-hidden bg-white" style="display: flex; width: 16mm !important; height: 12mm !important; align-items: center; justify-content: center;">
+                <img src="{{ $businessLogoUrl }}" alt="{{ Setting::get('business_name') }}" style="display: block; width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; object-fit: contain !important;">
             </div>
-        @endif
+            @endif
+            <h2 class="font-bold text-sm tracking-wide">{{ Setting::get('business_name') }}</h2>
+            <p class="text-[9px] mt-0.5">{{ Setting::get('business_address') }}</p>
+            @if ($businessReceiptPhones)
+            <p class="text-[9px] mt-0.5">Tel: {{ $businessReceiptPhones }}</p>
+            @endif
+            @if ($businessBrNumber)
+            <p class="text-[9px] mt-0.5">BR No: {{ $businessBrNumber }}</p>
+            @endif
+        </div>
+
+        <div class="border-b border-dashed border-zinc-400 pb-2 mb-2">
+            <p>Invoice: <span class="font-bold">{{ $this->completedSale->invoice_no }}</span></p>
+            <p>Date: {{ $this->completedSale->date->format('Y-m-d H:i') }}</p>
+            <p>Customer: {{ $this->completedSale->customer?->name }}</p>
+            @if ($this->completedSale->customer?->phone)
+            <p>Phone: {{ $this->completedSale->customer?->phone }}</p>
+            @endif
+        </div>
+
+        <!-- Items Table -->
+        <div class="border-b border-dashed border-zinc-400 pb-2 mb-2 flex flex-col gap-1.5">
+            @foreach ($this->completedSale->items as $item)
+            <div class="flex justify-between">
+                <div>
+                    <p class="font-bold">{{ $item->product?->name }}</p>
+                    <p class="text-[9px] text-zinc-600">{{ $item->quantity }} x Rs {{ number_format($item->selling_price, 2) }}</p>
+                </div>
+                <p class="font-bold">Rs {{ number_format($item->subtotal, 2) }}</p>
+            </div>
+            @endforeach
+        </div>
+
+        <!-- Financials summary -->
+        <div class="flex flex-col gap-1 text-right mb-4">
+            <div class="flex justify-between">
+                <span>Subtotal</span>
+                <span>Rs {{ number_format($this->completedSale->subtotal_amount, 2) }}</span>
+            </div>
+            @if ($this->completedSale->discount_amount > 0)
+            <div class="flex justify-between">
+                <span>Discount</span>
+                <span>- Rs {{ number_format($this->completedSale->discount_amount, 2) }}</span>
+            </div>
+            @endif
+            <div class="flex justify-between font-bold text-xs border-t border-dashed border-zinc-400 pt-1">
+                <span>Grand Total</span>
+                <span>Rs {{ number_format($this->completedSale->grand_total, 2) }}</span>
+            </div>
+            <div class="flex justify-between text-zinc-700">
+                <span>Amount Paid</span>
+                <span>Rs {{ number_format($this->completedSale->paid_amount, 2) }}</span>
+            </div>
+            <div class="flex justify-between text-zinc-700">
+                <span>Due Balance</span>
+                <span>Rs {{ number_format($this->completedSale->due_amount, 2) }}</span>
+            </div>
+        </div>
+
+        <div class="text-center text-[9px] leading-snug">
+            <p class="font-semibold">{{ Setting::get('invoice_footer_note') }}</p>
+            @if ($devName !== '')
+            <p class="text-[8px] text-zinc-600 mt-2">Powered by {{ $devName }}</p>
+            @endif
+        </div>
+    </div>
+    @endif
     @endif
 
     @assets
-        <script src="/vendor/pos-share/html2canvas-pro.min.js" defer></script>
-        <script src="/vendor/pos-share/jspdf.umd.min.js" defer></script>
+    <script src="/vendor/pos-share/html2canvas-pro.min.js" defer></script>
+    <script src="/vendor/pos-share/jspdf.umd.min.js" defer></script>
     @endassets
 </div>
