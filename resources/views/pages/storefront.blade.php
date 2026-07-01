@@ -96,6 +96,20 @@ new #[Layout('layouts::storefront'), Title('Phones & Accessories')] class extend
 
         return 'https://wa.me/'.$phone.'?text='.rawurlencode($message);
     }
+
+    #[Computed]
+    public function whatsAppUrl(): string
+    {
+        $phone = preg_replace('/\D+/', '', $this->contactPhone);
+
+        if (str_starts_with($phone, '0')) {
+            $phone = '94'.substr($phone, 1);
+        }
+
+        $message = __('Hi, I have an inquiry about mobile accessories.');
+
+        return 'https://wa.me/'.$phone.'?text='.rawurlencode($message);
+    }
 };
 ?>
 
@@ -112,7 +126,7 @@ new #[Layout('layouts::storefront'), Title('Phones & Accessories')] class extend
                 </div>
                 <h1 class="mt-7 text-balance text-5xl font-black leading-[0.98] tracking-[-0.055em] text-slate-950 sm:text-6xl lg:text-7xl">
                     Smarter tech.
-                    <span class="text-blue-600">Better everyday.</span>
+                    <span class="bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 bg-clip-text text-transparent">Better everyday.</span>
                 </h1>
                 <p class="mt-6 max-w-lg text-pretty text-base leading-7 text-slate-600 sm:text-lg">
                     {{ Setting::get('business_tagline', 'Discover phones, accessories, chargers, audio, and everyday mobile essentials selected for quality and value.') }}
@@ -175,10 +189,87 @@ new #[Layout('layouts::storefront'), Title('Phones & Accessories')] class extend
                             </div>
                         </article>
                     @empty
-                        <div class="col-span-2 flex min-h-96 items-center justify-center rounded-[2rem] border border-white bg-white shadow-xl">
-                            <flux:icon.device-phone-mobile class="size-32 text-blue-500" />
+                        <div class="col-span-2 flex items-center justify-center py-6">
+                            <div class="relative flex h-[500px] w-full max-w-[340px] items-center justify-center rounded-[3rem] border-8 border-slate-900 bg-slate-950 p-3 shadow-2xl shadow-blue-500/20 transition-all duration-500 hover:scale-102 hover:shadow-blue-500/30 animate-float-slow">
+                                <!-- Camera Notch (Dynamic Island style) -->
+                                <div class="absolute top-4 left-1/2 h-5 w-24 -translate-x-1/2 rounded-full bg-slate-900 z-20"></div>
+                                
+                                <!-- Screen Content -->
+                                <div class="relative flex size-full flex-col overflow-hidden rounded-[2.3rem] bg-gradient-to-b from-slate-900 via-blue-950 to-slate-900 p-5 text-white">
+                                    <!-- Reflection effect -->
+                                    <div class="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-white/10 pointer-events-none"></div>
+
+                                    <!-- Status Bar -->
+                                    <div class="flex justify-between items-center text-[10px] font-bold text-white/55 z-10">
+                                        <span>9:41</span>
+                                        <div class="flex items-center gap-1.5">
+                                            <flux:icon.bolt class="size-3 text-emerald-400" />
+                                            <span class="text-emerald-400">85%</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Phone UI Mockup -->
+                                    <div class="mt-12 flex flex-col items-center text-center z-10">
+                                        <div class="size-16 rounded-2xl bg-gradient-to-tr from-blue-500 to-cyan-400 p-0.5 shadow-lg shadow-blue-500/25">
+                                            <div class="flex size-full items-center justify-center rounded-[14px] bg-slate-950">
+                                                <span class="text-2xl font-black text-cyan-400">L</span>
+                                            </div>
+                                        </div>
+                                        <h3 class="mt-4 text-lg font-black tracking-tight text-white">{{ $this->businessName }}</h3>
+                                        <p class="mt-1 text-[11px] text-white/55">Premium Devices & Accessories</p>
+                                    </div>
+
+                                    <!-- Phone Display Grid graphic -->
+                                    <div class="mt-8 grid grid-cols-2 gap-2 z-10">
+                                        <div class="rounded-xl bg-white/5 p-2.5 text-center border border-white/10">
+                                            <flux:icon.device-phone-mobile class="size-6 text-cyan-400 mx-auto" />
+                                            <span class="mt-1.5 block text-[9px] font-bold text-white/80">Phones</span>
+                                        </div>
+                                        <div class="rounded-xl bg-white/5 p-2.5 text-center border border-white/10">
+                                            <flux:icon.bolt class="size-6 text-yellow-400 mx-auto" />
+                                            <span class="mt-1.5 block text-[9px] font-bold text-white/80">Power</span>
+                                        </div>
+                                        <div class="rounded-xl bg-white/5 p-2.5 text-center border border-white/10">
+                                            <flux:icon.speaker-wave class="size-6 text-indigo-400 mx-auto" />
+                                            <span class="mt-1.5 block text-[9px] font-bold text-white/80">Audio</span>
+                                        </div>
+                                        <div class="rounded-xl bg-white/5 p-2.5 text-center border border-white/10">
+                                            <flux:icon.shield-check class="size-6 text-emerald-400 mx-auto" />
+                                            <span class="mt-1.5 block text-[9px] font-bold text-white/80">Cases</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Floating UI Elements Inside screen -->
+                                    <div class="mt-auto space-y-2.5 z-10">
+                                        <div class="flex items-center gap-2.5 rounded-2xl bg-white/5 border border-white/10 p-2.5 backdrop-blur-md">
+                                            <span class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-blue-500/20 text-blue-400"><flux:icon.bolt class="size-3.5" /></span>
+                                            <div class="text-left leading-none"><p class="text-[10px] font-black text-white">Anker 20W Charger</p><p class="mt-0.5 text-[8px] text-white/55">In stock</p></div>
+                                            <span class="ml-auto text-[10px] font-black text-blue-400">Rs 2,950</span>
+                                        </div>
+                                        <div class="flex items-center gap-2.5 rounded-2xl bg-white/5 border border-white/10 p-2.5 backdrop-blur-md">
+                                            <span class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400"><flux:icon.shield-check class="size-3.5" /></span>
+                                            <div class="text-left leading-none"><p class="text-[10px] font-black text-white">Spigen Armor Case</p><p class="mt-0.5 text-[8px] text-white/55">In stock</p></div>
+                                            <span class="ml-auto text-[10px] font-black text-emerald-400">Rs 2,450</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Ambient Glow Blobs behind / around the phone -->
+                                <div class="absolute -left-16 -top-16 -z-10 size-48 rounded-full bg-blue-500/15 blur-3xl pointer-events-none"></div>
+                                <div class="absolute -right-16 -bottom-16 -z-10 size-48 rounded-full bg-cyan-500/15 blur-3xl pointer-events-none"></div>
+
+                                <!-- External Floating Badges / Glassmorphic elements outside the phone -->
+                                <div class="absolute -left-16 top-1/4 animate-float-medium flex items-center gap-2.5 rounded-2xl border border-slate-200/80 bg-white/95 p-3 shadow-xl shadow-slate-900/10 backdrop-blur">
+                                    <span class="flex size-8 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 shadow-inner"><flux:icon.sparkles class="size-4" /></span>
+                                    <div class="text-left leading-none"><p class="text-[10px] font-black text-slate-900">Premium Glass</p><p class="mt-0.5 text-[8px] text-slate-400">9H Tempered</p></div>
+                                </div>
+                                
+                                <div class="absolute -right-16 bottom-1/3 animate-float-fast flex items-center gap-2.5 rounded-2xl border border-slate-200/80 bg-white/95 p-3 shadow-xl shadow-slate-900/10 backdrop-blur">
+                                    <span class="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600 shadow-inner"><flux:icon.bolt class="size-4" /></span>
+                                    <div class="text-left leading-none"><p class="text-[10px] font-black text-slate-900">Fast Wireless</p><p class="mt-0.5 text-[8px] text-slate-400">15W MagSafe</p></div>
+                                </div>
+                            </div>
                         </div>
-                    @endforelse
                 </div>
             </div>
         </div>
@@ -306,14 +397,40 @@ new #[Layout('layouts::storefront'), Title('Phones & Accessories')] class extend
                         </div>
                     </article>
                 @empty
-                    <div class="col-span-full rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center">
-                        <span class="mx-auto flex size-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400"><flux:icon.magnifying-glass class="size-6" /></span>
-                        <h3 class="mt-5 text-lg font-black text-slate-900">No products found</h3>
-                        <p class="mt-2 text-sm text-slate-500">Try another search or category.</p>
-                        @if ($search !== '' || $categoryId !== null)
+                    @if ($search === '' && $categoryId === null)
+                        <!-- Database completely empty (catalog updating) -->
+                        <div class="col-span-full rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-xl shadow-slate-900/5 sm:p-12 lg:p-16">
+                            <span class="mx-auto flex size-16 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 animate-pulse">
+                                <flux:icon.sparkles class="size-8" />
+                            </span>
+                            <div class="inline-flex mt-6 items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-black uppercase tracking-wider text-blue-700">
+                                <span class="size-1.5 rounded-full bg-blue-600 animate-ping"></span>
+                                Catalog updating
+                            </div>
+                            <h3 class="mt-6 text-2xl font-black text-slate-900 tracking-tight">Our digital catalog is being loaded</h3>
+                            <p class="mx-auto mt-3 max-w-lg text-sm leading-relaxed text-slate-500">
+                                We are currently uploading our latest stock of premium cases, adapters, audio gear, and screen protection. You can still order or check availability directly!
+                            </p>
+                            <div class="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+                                <a href="{{ $this->whatsAppUrl }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700 hover:-translate-y-0.5">
+                                    <flux:icon.chat-bubble-left-right class="size-4" />
+                                    WhatsApp Inquiry
+                                </a>
+                                <a href="tel:{{ preg_replace('/\s+/', '', $this->contactPhone) }}" class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 transition hover:border-blue-600 hover:text-blue-600 hover:-translate-y-0.5">
+                                    <flux:icon.phone class="size-4" />
+                                    Call {{ $this->contactPhone }}
+                                </a>
+                            </div>
+                        </div>
+                    @else
+                        <!-- Search / filter returned nothing -->
+                        <div class="col-span-full rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center">
+                            <span class="mx-auto flex size-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400"><flux:icon.magnifying-glass class="size-6" /></span>
+                            <h3 class="mt-5 text-lg font-black text-slate-900">No products found</h3>
+                            <p class="mt-2 text-sm text-slate-500">Try another search or category.</p>
                             <button type="button" wire:click="$set('search', ''); $set('categoryId', null)" class="mt-5 rounded-full border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">Clear filters</button>
-                        @endif
-                    </div>
+                        </div>
+                    @endif
                 @endforelse
             </div>
 

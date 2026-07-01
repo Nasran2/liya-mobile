@@ -38,19 +38,19 @@
             <div class="mx-auto flex h-18 max-w-7xl items-center justify-between gap-5 px-4 sm:px-6 lg:px-8">
                 <a href="{{ route('home') }}" class="flex min-w-0 items-center gap-3" wire:navigate>
                     @if ($businessLogoUrl)
-                        <img src="{{ $businessLogoUrl }}" alt="{{ $businessName }}" class="size-10 rounded-xl border border-slate-200 bg-white object-contain p-1" />
+                        <img src="{{ $businessLogoUrl }}" alt="{{ $businessName }}" class="size-10 rounded-xl border border-slate-200 bg-white object-contain p-1 shadow-sm" />
                     @else
-                        <span class="flex size-10 items-center justify-center rounded-xl bg-blue-600 text-lg font-black text-white shadow-lg shadow-blue-600/20">L</span>
+                        <span class="flex size-10 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-500 text-lg font-black text-white shadow-md shadow-blue-500/25">L</span>
                     @endif
                     <span class="truncate text-base font-black tracking-[-0.03em] text-slate-950 sm:text-lg">{{ $businessName }}</span>
                 </a>
 
-                <nav class="hidden items-center gap-7 text-sm font-semibold text-slate-600 lg:flex" aria-label="Main navigation">
-                    <a href="{{ route('home') }}" class="text-blue-600">Home</a>
-                    <a href="#products" class="transition hover:text-blue-600">Shop</a>
-                    <a href="#categories" class="transition hover:text-blue-600">Categories</a>
-                    <a href="#why-us" class="transition hover:text-blue-600">Why us</a>
-                    <a href="#contact" class="transition hover:text-blue-600">Contact</a>
+                <nav class="hidden items-center gap-8 text-sm font-semibold text-slate-600 lg:flex" aria-label="Main navigation">
+                    <a href="{{ route('home') }}" class="relative text-blue-600 after:absolute after:bottom-[-6px] after:left-0 after:h-[2px] after:w-full after:rounded-full after:bg-blue-600 transition">Home</a>
+                    <a href="#products" class="relative transition hover:text-blue-600 after:absolute after:bottom-[-6px] after:left-0 after:h-[2px] after:w-0 after:rounded-full after:bg-blue-600 hover:after:w-full after:transition-all">Shop</a>
+                    <a href="#categories" class="relative transition hover:text-blue-600 after:absolute after:bottom-[-6px] after:left-0 after:h-[2px] after:w-0 after:rounded-full after:bg-blue-600 hover:after:w-full after:transition-all">Categories</a>
+                    <a href="#why-us" class="relative transition hover:text-blue-600 after:absolute after:bottom-[-6px] after:left-0 after:h-[2px] after:w-0 after:rounded-full after:bg-blue-600 hover:after:w-full after:transition-all">Why us</a>
+                    <a href="#contact" class="relative transition hover:text-blue-600 after:absolute after:bottom-[-6px] after:left-0 after:h-[2px] after:w-0 after:rounded-full after:bg-blue-600 hover:after:w-full after:transition-all">Contact</a>
                 </nav>
 
                 <div class="flex items-center gap-2">
@@ -76,9 +76,9 @@
                 <div class="max-w-sm">
                     <div class="flex items-center gap-3">
                         @if ($businessLogoUrl)
-                            <img src="{{ $businessLogoUrl }}" alt="{{ $businessName }}" class="size-11 rounded-xl bg-white object-contain p-1" />
+                            <img src="{{ $businessLogoUrl }}" alt="{{ $businessName }}" class="size-11 rounded-xl bg-white object-contain p-1 shadow" />
                         @else
-                            <span class="flex size-11 items-center justify-center rounded-xl bg-blue-600 text-lg font-black">L</span>
+                            <span class="flex size-11 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-500 text-lg font-black">L</span>
                         @endif
                         <span class="text-xl font-black tracking-tight">{{ $businessName }}</span>
                     </div>
