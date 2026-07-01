@@ -46,6 +46,12 @@ class ProductForm extends Form
 
     public bool $is_active = true;
 
+    public bool $show_on_storefront = true;
+
+    public bool $show_storefront_price = true;
+
+    public $storefront_price = null;
+
     public ?string $image_path = null;
 
     public $image;
@@ -70,6 +76,11 @@ class ProductForm extends Form
         $this->warranty_enabled = (bool) $product->warranty_enabled;
         $this->warranty_period_days = $product->warranty_period_days;
         $this->is_active = (bool) $product->is_active;
+        $this->show_on_storefront = (bool) $product->show_on_storefront;
+        $this->show_storefront_price = (bool) $product->show_storefront_price;
+        $this->storefront_price = $product->storefront_price !== null
+            ? (float) $product->storefront_price
+            : null;
         $this->image_path = $product->image_path;
     }
 
@@ -111,6 +122,9 @@ class ProductForm extends Form
                 'min:1',
             ],
             'is_active' => ['boolean'],
+            'show_on_storefront' => ['boolean'],
+            'show_storefront_price' => ['boolean'],
+            'storefront_price' => ['nullable', 'numeric', 'min:0'],
             'image' => ['nullable', 'image', 'max:2048'],
         ];
     }
@@ -166,6 +180,11 @@ class ProductForm extends Form
             'warranty_enabled' => $this->warranty_enabled,
             'warranty_period_days' => $this->warranty_enabled ? $this->warranty_period_days : null,
             'is_active' => $this->is_active,
+            'show_on_storefront' => $this->show_on_storefront,
+            'show_storefront_price' => $this->show_storefront_price,
+            'storefront_price' => ($this->storefront_price !== null && $this->storefront_price !== '')
+                ? (float) $this->storefront_price
+                : null,
         ];
     }
 

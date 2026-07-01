@@ -4,7 +4,7 @@ use App\Http\Controllers\DebugPasskeysController;
 use App\Http\Controllers\PublicBillController;
 use Illuminate\Support\Facades\Route;
 
-Route::redirect('/', '/dashboard')->name('home');
+Route::livewire('/', 'pages::storefront')->name('home');
 
 Route::get('bill/{sale:invoice_no}', PublicBillController::class)->name('public.bill');
 

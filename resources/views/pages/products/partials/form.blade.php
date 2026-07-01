@@ -130,6 +130,48 @@
                 </flux:badge>
             </div>
         </div>
+
+        <div class="app-card overflow-hidden p-4">
+            <div class="flex items-start gap-3">
+                <div class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white shadow-lg shadow-violet-500/20">
+                    <flux:icon.globe-alt class="size-5" />
+                </div>
+                <div>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-violet-500">Website</p>
+                    <h2 class="font-display text-lg font-semibold text-zinc-900">{{ __('Storefront display') }}</h2>
+                    <p class="mt-1 text-xs leading-5 text-zinc-500">{{ __('Control how this product appears on the public website.') }}</p>
+                </div>
+            </div>
+
+            <div class="mt-5 grid gap-4">
+                <flux:switch
+                    wire:model.live="form.show_on_storefront"
+                    :label="__('Show on website')"
+                    :description="__('Customers can find this product in the online catalog.')"
+                />
+
+                @if ($form->show_on_storefront)
+                    <flux:separator variant="subtle" />
+                    <flux:switch
+                        wire:model.live="form.show_storefront_price"
+                        :label="__('Show price on website')"
+                        :description="__('Turn this off to display Ask for price instead.')"
+                    />
+
+                    @if ($form->show_storefront_price)
+                        <flux:input
+                            wire:model="form.storefront_price"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            :label="__('Website-only price')"
+                            :description="__('Optional. Leave blank to use the regular selling price.')"
+                            placeholder="Use selling price"
+                        />
+                    @endif
+                @endif
+            </div>
+        </div>
     </div>
 </div>
 

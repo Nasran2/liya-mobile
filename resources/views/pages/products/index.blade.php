@@ -178,6 +178,7 @@ new #[Title('Products')] class extends Component
                             <div class="mt-2 flex flex-wrap gap-2">
                                 <span class="app-chip">Rs {{ number_format($product->selling_price, 2) }}</span>
                                 <span class="app-chip">Stock {{ $product->stock_quantity }}</span>
+                                <span class="app-chip">{{ $product->show_on_storefront ? __('On website') : __('Website hidden') }}</span>
                             </div>
                         </div>
                     </div>
@@ -218,6 +219,7 @@ new #[Title('Products')] class extends Component
                 <flux:table.column align="end">{{ __('Price') }}</flux:table.column>
                 <flux:table.column align="end">{{ __('Stock') }}</flux:table.column>
                 <flux:table.column align="center">{{ __('Status') }}</flux:table.column>
+                <flux:table.column align="center">{{ __('Website') }}</flux:table.column>
                 <flux:table.column align="end">{{ __('Actions') }}</flux:table.column>
             </flux:table.columns>
             <flux:table.rows>
@@ -260,6 +262,11 @@ new #[Title('Products')] class extends Component
                         <flux:table.cell align="center">
                             <flux:badge size="sm" :color="$product->is_active ? 'green' : 'zinc'">
                                 {{ $product->is_active ? __('Active') : __('Inactive') }}
+                            </flux:badge>
+                        </flux:table.cell>
+                        <flux:table.cell align="center">
+                            <flux:badge size="sm" :color="$product->show_on_storefront ? 'violet' : 'zinc'">
+                                {{ $product->show_on_storefront ? __('Visible') : __('Hidden') }}
                             </flux:badge>
                         </flux:table.cell>
                         <flux:table.cell align="end">

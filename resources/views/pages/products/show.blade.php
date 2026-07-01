@@ -50,6 +50,9 @@ new #[Title('Product details')] class extends Component
                     <flux:badge size="sm" :color="$product->is_active ? 'green' : 'zinc'">
                         {{ $product->is_active ? __('Active') : __('Inactive') }}
                     </flux:badge>
+                    <flux:badge size="sm" :color="$product->show_on_storefront ? 'violet' : 'zinc'">
+                        {{ $product->show_on_storefront ? __('Visible on website') : __('Hidden from website') }}
+                    </flux:badge>
                     <span class="app-chip">{{ $product->category?->name ?? __('Uncategorized') }}</span>
                     <span class="app-chip">{{ $product->brand?->name ?? __('No brand') }}</span>
                     <span class="app-chip">{{ $product->unit?->name ?? __('No unit') }}</span>
@@ -87,6 +90,26 @@ new #[Title('Product details')] class extends Component
             <p class="mt-2 text-sm text-zinc-700">
                 {{ $product->warranty_enabled ? $product->warranty_period_days.' days' : __('No warranty') }}
             </p>
+        </div>
+    </section>
+
+    <section class="app-card p-4">
+        <p class="text-xs font-semibold uppercase tracking-wide text-violet-500">{{ __('Website') }}</p>
+        <div class="mt-3 grid gap-3 sm:grid-cols-3">
+            <div class="app-card-muted p-3">
+                <p class="text-xs text-zinc-500">{{ __('Visibility') }}</p>
+                <p class="mt-1 text-sm font-semibold text-zinc-900">{{ $product->show_on_storefront ? __('Shown') : __('Hidden') }}</p>
+            </div>
+            <div class="app-card-muted p-3">
+                <p class="text-xs text-zinc-500">{{ __('Price display') }}</p>
+                <p class="mt-1 text-sm font-semibold text-zinc-900">{{ $product->show_storefront_price ? __('Shown') : __('Ask for price') }}</p>
+            </div>
+            <div class="app-card-muted p-3">
+                <p class="text-xs text-zinc-500">{{ __('Website price') }}</p>
+                <p class="mt-1 text-sm font-semibold text-zinc-900">
+                    {{ $product->storefront_price !== null ? 'Rs '.number_format($product->storefront_price, 2) : __('Uses selling price') }}
+                </p>
+            </div>
         </div>
     </section>
 

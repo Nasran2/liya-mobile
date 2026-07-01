@@ -44,6 +44,9 @@ class ProductFactory extends Factory
                 ? $this->faker->randomElement([7, 30, 90, 180, 365])
                 : null,
             'is_active' => $this->faker->boolean(90),
+            'show_on_storefront' => true,
+            'show_storefront_price' => true,
+            'storefront_price' => null,
         ];
     }
 }
