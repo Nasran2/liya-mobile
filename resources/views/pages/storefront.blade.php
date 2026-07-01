@@ -270,6 +270,7 @@ new #[Layout('layouts::storefront'), Title('Phones & Accessories')] class extend
                                 </div>
                             </div>
                         </div>
+                    @endforelse
                 </div>
             </div>
         </div>
