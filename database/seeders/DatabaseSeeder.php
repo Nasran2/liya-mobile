@@ -224,6 +224,6 @@ class DatabaseSeeder extends Seeder
             Brand::query()->updateOrCreate(['name' => $brand], ['is_active' => true]);
         }
 
-        $this->call(SampleProductsSeeder::class);
+        // $this->call(SampleProductsSeeder::class);
     }
 }
