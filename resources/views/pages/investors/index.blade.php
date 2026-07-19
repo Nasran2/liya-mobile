@@ -25,7 +25,7 @@ new #[Title('Investor Directory')] class extends Component
     public string $phone = '';
     public string $email = '';
     public string $address = '';
-    public string $nid = '';
+    public string $nic = '';
     public $default_profit_percentage = 0.00;
     public bool $is_active = true;
 
@@ -46,7 +46,7 @@ new #[Title('Investor Directory')] class extends Component
     public function openCreateModal()
     {
         $this->resetValidation();
-        $this->reset(['editingId', 'name', 'phone', 'email', 'address', 'nid', 'default_profit_percentage', 'is_active']);
+        $this->reset(['editingId', 'name', 'phone', 'email', 'address', 'nic', 'default_profit_percentage', 'is_active']);
         $this->modalOpen = true;
     }
 
@@ -59,7 +59,7 @@ new #[Title('Investor Directory')] class extends Component
         $this->phone = $investor->phone ?? '';
         $this->email = $investor->email ?? '';
         $this->address = $investor->address ?? '';
-        $this->nid = $investor->nid ?? '';
+        $this->nic = $investor->nic ?? '';
         $this->default_profit_percentage = $investor->default_profit_percentage;
         $this->is_active = $investor->is_active;
         $this->modalOpen = true;
@@ -72,7 +72,7 @@ new #[Title('Investor Directory')] class extends Component
             'phone' => 'nullable|string|max:20',
             'email' => 'nullable|email|max:255',
             'address' => 'nullable|string',
-            'nid' => 'nullable|string|max:50',
+            'nic' => 'nullable|string|max:50',
             'default_profit_percentage' => 'required|numeric|min:0|max:100',
             'is_active' => 'boolean',
         ]);
@@ -84,18 +84,22 @@ new #[Title('Investor Directory')] class extends Component
                 'phone' => $this->phone,
                 'email' => $this->email,
                 'address' => $this->address,
-                'nid' => $this->nid,
+                'nic' => $this->nic,
                 'default_profit_percentage' => $this->default_profit_percentage,
                 'is_active' => $this->is_active,
             ]);
             Flux::toast(variant: 'success', text: __('Investor updated successfully.'));
         } else {
+            $lastId = Investor::max('id') ?? 0;
+            $code = 'INV-' . str_pad($lastId + 1, 4, '0', STR_PAD_LEFT);
+            
             Investor::create([
+                'code' => $code,
                 'name' => $this->name,
                 'phone' => $this->phone,
                 'email' => $this->email,
                 'address' => $this->address,
-                'nid' => $this->nid,
+                'nic' => $this->nic,
                 'default_profit_percentage' => $this->default_profit_percentage,
                 'is_active' => $this->is_active,
             ]);
@@ -147,8 +151,8 @@ new #[Title('Investor Directory')] class extends Component
                         <tr wire:key="investor-{{ $investor->id }}" class="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/50 transition">
                             <td class="px-6 py-4 font-medium text-zinc-900 dark:text-zinc-100">
                                 {{ $investor->name }}
-                                @if($investor->nid)
-                                    <div class="text-xs text-zinc-500 font-normal">NID: {{ $investor->nid }}</div>
+                                @if($investor->nic)
+                                    <div class="text-xs text-zinc-500 font-normal">NIC: {{ $investor->nic }}</div>
                                 @endif
                             </td>
                             <td class="px-6 py-4 text-zinc-600 dark:text-zinc-400">
@@ -216,7 +220,7 @@ new #[Title('Investor Directory')] class extends Component
                 <flux:input wire:model="phone" label="{{ __('Phone Number') }}" placeholder="{{ __('07X XXX XXXX') }}" />
                 <flux:input type="email" wire:model="email" label="{{ __('Email Address') }}" placeholder="{{ __('john@example.com') }}" />
                 
-                <flux:input wire:model="nid" label="{{ __('National ID (NID)') }}" placeholder="{{ __('XXXXXXXXXV') }}" />
+                <flux:input wire:model="nic" label="{{ __('National Identity Card (NIC)') }}" placeholder="{{ __('XXXXXXXXXV') }}" />
                 <flux:input type="number" step="0.01" wire:model="default_profit_percentage" label="{{ __('Default Profit %') }}" placeholder="10.00" required />
                 
                 <div class="sm:col-span-2">

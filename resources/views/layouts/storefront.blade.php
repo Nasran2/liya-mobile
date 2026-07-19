@@ -57,6 +57,9 @@
                     <a href="#products" class="flex size-10 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-blue-600" aria-label="Search products">
                         <flux:icon.magnifying-glass class="size-5" />
                     </a>
+                    <a href="{{ request()->routeIs('wholesale') ? route('home') : route('wholesale') }}" class="hidden sm:inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-700 transition hover:bg-blue-100" wire:navigate>
+                        {{ request()->routeIs('wholesale') ? 'Retail Store' : 'Wholesale Portal' }}
+                    </a>
                     @auth
                         <a href="{{ route('dashboard') }}" class="inline-flex items-center rounded-full bg-slate-950 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-blue-600">Dashboard</a>
                     @else

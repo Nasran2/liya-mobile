@@ -5,6 +5,7 @@ use App\Http\Controllers\PublicBillController;
 use Illuminate\Support\Facades\Route;
 
 Route::livewire('/', 'pages::storefront')->name('home');
+Route::livewire('/wholesale', 'pages::wholesale-storefront')->name('wholesale');
 
 Route::get('bill/{sale:invoice_no}', PublicBillController::class)->name('public.bill');
 

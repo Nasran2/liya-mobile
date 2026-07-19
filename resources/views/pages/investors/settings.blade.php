@@ -27,12 +27,12 @@ new #[Title('Investor Settings')] class extends Component
 
         InvestorSetting::updateOrCreate(
             ['key' => 'module_enabled'],
-            ['value' => $this->module_enabled ? '1' : '0', 'type' => 'boolean']
+            ['value' => $this->module_enabled ? '1' : '0']
         );
 
         InvestorSetting::updateOrCreate(
             ['key' => 'default_profit_percentage'],
-            ['value' => (string) $this->default_profit_percentage, 'type' => 'decimal']
+            ['value' => (string) $this->default_profit_percentage]
         );
 
         Flux::toast(variant: 'success', text: __('Investor settings updated successfully.'));

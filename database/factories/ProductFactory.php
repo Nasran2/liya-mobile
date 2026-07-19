@@ -20,30 +20,30 @@ class ProductFactory extends Factory
      */
     public function definition(): array
     {
-        $warrantyEnabled = $this->faker->boolean(35);
+        $warrantyEnabled = fake()->boolean(35);
 
         return [
             'category_id' => Category::factory(),
             'brand_id' => Brand::factory(),
             'unit_id' => Unit::factory(),
-            'name' => $this->faker->words(3, true),
-            'sku' => $this->faker->unique()->bothify('SKU-####??'),
-            'barcode' => $this->faker->boolean(70) ? $this->faker->unique()->ean13() : null,
+            'name' => fake()->words(3, true),
+            'sku' => fake()->unique()->bothify('SKU-####??'),
+            'barcode' => fake()->boolean(70) ? fake()->unique()->ean13() : null,
             'image_path' => null,
-            'compatible_models' => $this->faker->boolean(60) ? $this->faker->words(2, true) : null,
-            'color' => $this->faker->safeColorName(),
-            'cost_price' => $this->faker->randomFloat(2, 80, 2400),
-            'selling_price' => $this->faker->randomFloat(2, 120, 3600),
-            'wholesale_price' => $this->faker->boolean(60)
-                ? $this->faker->randomFloat(2, 100, 3200)
+            'compatible_models' => fake()->boolean(60) ? fake()->words(2, true) : null,
+            'color' => fake()->safeColorName(),
+            'cost_price' => fake()->randomFloat(2, 80, 2400),
+            'selling_price' => fake()->randomFloat(2, 120, 3600),
+            'wholesale_price' => fake()->boolean(60)
+                ? fake()->randomFloat(2, 100, 3200)
                 : null,
-            'stock_quantity' => $this->faker->numberBetween(0, 140),
-            'minimum_stock' => $this->faker->numberBetween(0, 20),
+            'stock_quantity' => fake()->numberBetween(0, 140),
+            'minimum_stock' => fake()->numberBetween(0, 20),
             'warranty_enabled' => $warrantyEnabled,
             'warranty_period_days' => $warrantyEnabled
-                ? $this->faker->randomElement([7, 30, 90, 180, 365])
+                ? fake()->randomElement([7, 30, 90, 180, 365])
                 : null,
-            'is_active' => $this->faker->boolean(90),
+            'is_active' => fake()->boolean(90),
             'show_on_storefront' => true,
             'show_storefront_price' => true,
             'storefront_price' => null,
