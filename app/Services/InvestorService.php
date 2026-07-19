@@ -22,7 +22,7 @@ class InvestorService
      */
     public function isEnabled(): bool
     {
-        return InvestorSetting::get('enable_investor_management', 'false') === 'true';
+        return InvestorSetting::get('module_enabled', '0') === '1';
     }
 
     /**

@@ -150,7 +150,9 @@ new #[Title('Investor Directory')] class extends Component
                     @forelse ($this->investors as $investor)
                         <tr wire:key="investor-{{ $investor->id }}" class="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/50 transition">
                             <td class="px-6 py-4 font-medium text-zinc-900 dark:text-zinc-100">
-                                {{ $investor->name }}
+                                <a href="{{ route('investors.show', $investor) }}" class="hover:underline text-indigo-600 dark:text-indigo-400" wire:navigate>
+                                    {{ $investor->name }}
+                                </a>
                                 @if($investor->nic)
                                     <div class="text-xs text-zinc-500 font-normal">NIC: {{ $investor->nic }}</div>
                                 @endif

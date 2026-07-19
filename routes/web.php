@@ -51,6 +51,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     
     Route::livewire('investors', 'pages::investors.dashboard')->name('investors.dashboard');
     Route::livewire('investors/directory', 'pages::investors.index')->name('investors.index');
+    Route::livewire('investors/{investor}/profile', 'pages::investors.show')->name('investors.show');
     Route::livewire('investors/payments', 'pages::investors.payments')->name('investors.payments');
     Route::livewire('investors/reports', 'pages::investors.reports')->name('investors.reports');
     Route::livewire('investors/settings', 'pages::investors.settings')->name('investors.settings');
@@ -58,6 +59,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('reports/sales', 'pages::reports.sales')->name('reports.sales');
     Route::livewire('reports/purchases', 'pages::reports.purchases')->name('reports.purchases');
     Route::livewire('reports/profit-loss', 'pages::reports.profit-loss')->name('reports.profit-loss');
+    Route::livewire('reports/bill-profits', 'pages::reports.bill-profits')->name('reports.bill-profits');
     Route::livewire('reports/stock', 'pages::reports.stock')->name('reports.stock');
     Route::livewire('reports/expenses', 'pages::reports.expenses')->name('reports.expenses');
     Route::livewire('reports/receives', 'pages::reports.receives')->name('reports.receives');

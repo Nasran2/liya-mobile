@@ -107,6 +107,13 @@ class BusinessReportService
                 'empty' => 'No customer due records found for the selected filters.',
                 'date_sensitive' => false,
             ],
+            'bill-profits' => [
+                'title' => 'Bill Profit Report',
+                'eyebrow' => 'Profitability',
+                'description' => 'Profit breakdown per sales invoice including investor allocations.',
+                'empty' => 'No bills found for the selected period.',
+                'date_sensitive' => true,
+            ],
             default => [
                 'title' => 'Sales Report',
                 'eyebrow' => 'Sales',
@@ -126,6 +133,7 @@ class BusinessReportService
             ['route' => 'reports.sales', 'label' => 'Sales Report'],
             ['route' => 'reports.purchases', 'label' => 'Purchase Report'],
             ['route' => 'reports.profit-loss', 'label' => 'Profit & Loss'],
+            ['route' => 'reports.bill-profits', 'label' => 'Bill Profit Report'],
             ['route' => 'reports.stock', 'label' => 'Stock Report'],
             ['route' => 'reports.expenses', 'label' => 'Expense Report'],
             ['route' => 'reports.receives', 'label' => 'Receive Report'],
@@ -143,6 +151,7 @@ class BusinessReportService
         return match ($reportType) {
             'purchases' => $this->purchaseRows($startDate, $endDate, $status, $search),
             'profit-loss' => $this->profitLossRows($startDate, $endDate),
+            'bill-profits' => $this->billProfitRows($startDate, $endDate, $status, $search),
             'stock' => $this->stockRows($status, $search),
             'expenses' => $this->expenseRows($startDate, $endDate, $paymentMethod, $search),
             'receives' => $this->receiveRows($startDate, $endDate, $paymentMethod, $search),
@@ -173,6 +182,12 @@ class BusinessReportService
                 ['label' => 'COGS', 'value' => $this->money((float) ($rows->firstWhere('key', 'cogs')['amount'] ?? 0), $currency), 'tone' => 'rose'],
                 ['label' => 'Gross Profit', 'value' => $this->money((float) ($rows->firstWhere('key', 'gross_profit')['amount'] ?? 0), $currency), 'tone' => 'emerald'],
                 ['label' => 'Net Profit', 'value' => $this->money((float) ($rows->firstWhere('key', 'net_profit')['amount'] ?? 0), $currency), 'tone' => ((float) ($rows->firstWhere('key', 'net_profit')['amount'] ?? 0)) >= 0 ? 'emerald' : 'rose'],
+            ],
+            'bill-profits' => [
+                ['label' => 'Total Bills', 'value' => (string) $rows->count(), 'tone' => 'zinc'],
+                ['label' => 'Total Profit', 'value' => $this->money((float) $rows->sum('total_profit'), $currency), 'tone' => 'emerald'],
+                ['label' => 'Investor Profit', 'value' => $this->money((float) $rows->sum('investor_profit'), $currency), 'tone' => 'violet'],
+                ['label' => 'Business Profit', 'value' => $this->money((float) $rows->sum('business_profit'), $currency), 'tone' => 'emerald'],
             ],
             'stock' => [
                 ['label' => 'Products', 'value' => (string) $rows->count(), 'tone' => 'zinc'],
@@ -239,6 +254,15 @@ class BusinessReportService
                 ['key' => 'description', 'label' => 'Details', 'align' => 'left'],
                 ['key' => 'amount', 'label' => 'Amount', 'align' => 'right', 'money' => true],
             ],
+            'bill-profits' => [
+                ['key' => 'date', 'label' => 'Date', 'align' => 'left'],
+                ['key' => 'invoice_no', 'label' => 'Bill No', 'align' => 'left'],
+                ['key' => 'grand_total', 'label' => 'Total Bill', 'align' => 'right', 'money' => true],
+                ['key' => 'paid_amount', 'label' => 'Paid', 'align' => 'right', 'money' => true, 'tone' => 'emerald'],
+                ['key' => 'total_profit', 'label' => 'Total Profit', 'align' => 'right', 'money' => true],
+                ['key' => 'investor_profit', 'label' => 'Investor Profit', 'align' => 'right', 'money' => true, 'tone' => 'violet'],
+                ['key' => 'business_profit', 'label' => 'Business Profit', 'align' => 'right', 'money' => true, 'tone' => 'emerald'],
+            ],
             'stock' => [
                 ['key' => 'name', 'label' => 'Product', 'align' => 'left'],
                 ['key' => 'sku', 'label' => 'SKU', 'align' => 'left'],
@@ -289,6 +313,42 @@ class BusinessReportService
                 ['key' => 'status', 'label' => 'Status', 'align' => 'left'],
             ],
         };
+    }
+
+    private function billProfitRows(string $startDate, string $endDate, string $status, ?string $search): Collection
+    {
+        return Sale::query()
+            ->with(['items', 'profitTransactions'])
+            ->whereDate('date', '>=', $startDate)
+            ->whereDate('date', '<=', $endDate)
+            ->when($status !== 'all', fn ($query) => $query->where('status', $status))
+            ->when($search, function ($query, string $term): void {
+                $query->where(function ($query) use ($term): void {
+                    $query->where('invoice_no', 'like', "%{$term}%")
+                        ->orWhereHas('customer', fn ($query) => $query->where('name', 'like', "%{$term}%"));
+                });
+            })
+            ->latest('date')
+            ->latest('id')
+            ->get()
+            ->map(function (Sale $sale): array {
+                $cogs = $sale->items->sum(fn ($item) => $item->quantity * $item->cost_price);
+                $netSales = $sale->subtotal_amount - $sale->discount_amount;
+                $totalProfit = $netSales - $cogs;
+                
+                $investorProfit = $sale->profitTransactions->sum('investor_profit_amount');
+                $businessProfit = $totalProfit - $investorProfit;
+
+                return [
+                    'date' => $this->date($sale->date),
+                    'invoice_no' => $sale->invoice_no,
+                    'grand_total' => (float) $sale->grand_total,
+                    'paid_amount' => (float) $sale->paid_amount,
+                    'total_profit' => (float) $totalProfit,
+                    'investor_profit' => (float) $investorProfit,
+                    'business_profit' => (float) $businessProfit,
+                ];
+            });
     }
 
     private function salesRows(string $startDate, string $endDate, string $status, ?string $search): Collection
@@ -360,14 +420,21 @@ class BusinessReportService
             ->whereDate('date', '>=', $startDate)
             ->whereDate('date', '<=', $endDate)
             ->sum('amount');
-        $netProfit = $grossProfit - $expenses;
+            
+        $investorProfits = (float) \App\Models\InvestorProfitTransaction::query()
+            ->whereDate('date', '>=', $startDate)
+            ->whereDate('date', '<=', $endDate)
+            ->sum('investor_profit_amount');
+            
+        $netProfit = $grossProfit - $expenses - $investorProfits;
 
         return collect([
             ['key' => 'revenue', 'label' => 'Total Gross Revenue', 'description' => 'Sum of sales invoice grand totals', 'amount' => $revenue],
             ['key' => 'cogs', 'label' => 'Cost of Goods Sold', 'description' => 'Quantity sold multiplied by product cost', 'amount' => $cogs],
             ['key' => 'gross_profit', 'label' => 'Gross Profit', 'description' => 'Revenue minus COGS', 'amount' => $grossProfit],
             ['key' => 'expenses', 'label' => 'Operating Expenses', 'description' => 'Expenses paid during the selected period', 'amount' => $expenses],
-            ['key' => 'net_profit', 'label' => 'Net Profit / Loss', 'description' => 'Gross profit minus operating expenses', 'amount' => $netProfit],
+            ['key' => 'investor_profits', 'label' => 'Investor Profit Shares', 'description' => 'Profits allocated to investors', 'amount' => $investorProfits],
+            ['key' => 'net_profit', 'label' => 'Net Profit / Loss', 'description' => 'Gross profit minus expenses and investor shares', 'amount' => $netProfit],
         ]);
     }
 

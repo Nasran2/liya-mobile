@@ -2,6 +2,8 @@
 
 use App\Models\Investor;
 use App\Models\InvestorLedgerEntry;
+use App\Models\Setting;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Flux\Flux;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
@@ -58,6 +60,51 @@ new #[Title('Investor Reports')] class extends Component
 
         return $query->paginate(15);
     }
+
+    public function downloadPdf()
+    {
+        $query = InvestorLedgerEntry::with('investor')
+            ->orderByDesc('date')
+            ->orderByDesc('id');
+
+        if ($this->selectedInvestorId) {
+            $query->where('investor_id', $this->selectedInvestorId);
+        }
+
+        if ($this->dateFrom) {
+            $query->whereDate('date', '>=', $this->dateFrom);
+        }
+
+        if ($this->dateTo) {
+            $query->whereDate('date', '<=', $this->dateTo);
+        }
+
+        if ($this->type) {
+            $query->where('transaction_type', $this->type);
+        }
+
+        $entries = $query->get();
+        $investorName = $this->selectedInvestorId ? Investor::find($this->selectedInvestorId)?->name : null;
+
+        $data = [
+            'entries' => $entries,
+            'investorName' => $investorName,
+            'dateFrom' => $this->dateFrom,
+            'dateTo' => $this->dateTo,
+            'type' => $this->type,
+            'businessName' => Setting::get('business_name', 'My Business'),
+            'businessAddress' => Setting::get('business_address', ''),
+            'businessPhone' => Setting::get('business_phone', ''),
+        ];
+
+        $pdf = Pdf::loadView('pdf.investor-report', $data)
+            ->setPaper('a4', 'landscape');
+
+        return response()->streamDownload(
+            fn () => print($pdf->output()),
+            "investor-ledger-report.pdf"
+        );
+    }
 }; ?>
 
 <div class="flex flex-col gap-6">
@@ -66,6 +113,10 @@ new #[Title('Investor Reports')] class extends Component
             <h1 class="font-display text-2xl font-bold tracking-tight text-zinc-950 dark:text-zinc-50">{{ __('Investor Ledger') }}</h1>
             <p class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('View detailed profit, funding, and payment transactions.') }}</p>
         </div>
+        <flux:button wire:click="downloadPdf" variant="primary" class="w-full sm:w-auto">
+            <flux:icon.arrow-down-tray class="size-4 mr-1" />
+            {{ __('Download PDF') }}
+        </flux:button>
     </div>
 
     <!-- Filters -->

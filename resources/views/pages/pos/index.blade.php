@@ -849,6 +849,11 @@ new #[Title('POS Terminal')] class extends Component
 
         $this->recordCheckoutReturnCredits($sale);
 
+        // 3. Allocate investor profits if module enabled
+        if ($this->investorModuleEnabled && !empty($this->investorAllocations)) {
+            app(InvestorService::class)->allocateSaleProfit($sale, $this->investorAllocations);
+        }
+
         // 3. Log cashier polymorphic payment
         foreach ($paymentRows as $paymentRow) {
             if ($paymentRow['amount'] <= 0) {

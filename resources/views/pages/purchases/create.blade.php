@@ -434,6 +434,21 @@ new #[Title('Record Wholesale Purchase')] class extends Component
             $paymentStatus = 'partial';
         }
 
+        if ($this->investorModuleEnabled) {
+            $fundingsToSave = [];
+            foreach ($paymentRows as $row) {
+                if (!empty($row['investor_id']) && $row['amount'] > 0) {
+                    $fundingsToSave[] = [
+                        'investor_id' => $row['investor_id'],
+                        'amount' => (float) $row['amount'],
+                        'payment_method' => $row['method'],
+                        'reference_no' => $row['reference'] ?? ($row['cheque_no'] ?? null),
+                    ];
+                }
+            }
+            $this->investorFundings = $fundingsToSave;
+        }
+
         DB::transaction(function () use ($subtotal, $grandTotal, $capturedPaidAmount, $dueAmount, $paymentStatus, $paymentRows): void {
             $purchase = $this->editingPurchaseId
                 ? Purchase::query()->with(['items', 'payments'])->findOrFail($this->editingPurchaseId)
@@ -689,6 +704,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
         return [
             'amount' => 0.00,
             'method' => $method,
+            'investor_id' => '',
             'reference' => '',
             'cheque_type' => 'party',
             'cheque_no' => '',
@@ -1030,6 +1046,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
     }
 }; ?>
 
+<div>
 <div class="flex flex-col gap-6">
     <div class="flex flex-col gap-2">
         <h1 class="font-display text-2xl font-bold tracking-tight text-zinc-950">
@@ -1250,6 +1267,17 @@ new #[Title('Record Wholesale Purchase')] class extends Component
                                     </flux:select>
                                 </div>
 
+                                @if ($investorModuleEnabled && count($investorFundings) > 0)
+                                    <div class="mt-3">
+                                        <flux:select wire:model.live="paymentRows.{{ $index }}.investor_id" :label="__('Funded By Investor (Optional)')">
+                                            <flux:select.option value="">{{ __('-- None (Company Funds) --') }}</flux:select.option>
+                                            @foreach ($investorFundings as $inv)
+                                                <flux:select.option :value="$inv['investor_id']">{{ $inv['name'] }}</flux:select.option>
+                                            @endforeach
+                                        </flux:select>
+                                    </div>
+                                @endif
+
                                 @if (($paymentRow['method'] ?? 'cash') === 'cheque')
                                     <div class="mt-3 flex flex-col gap-3">
                                         <flux:select wire:model.live="paymentRows.{{ $index }}.cheque_type" :label="__('Cheque Type')">
@@ -1404,3 +1432,4 @@ new #[Title('Record Wholesale Purchase')] class extends Component
         </div>
     </div>
 </flux:modal>
+</div>

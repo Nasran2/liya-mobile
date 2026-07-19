@@ -22,7 +22,7 @@ new #[Title('Investor Payments')] class extends Component
 
     // Payment Modal State
     public bool $modalOpen = false;
-    public ?int $selectedInvestorId = null;
+    public $selectedInvestorId = '';
     public $amount = 0.00;
     public string $payment_method = 'cash';
     public string $reference_no = '';
@@ -78,13 +78,30 @@ new #[Title('Investor Payments')] class extends Component
             return;
         }
 
-        app(InvestorService::class)->processPayment(
-            $investor,
-            (float) $this->amount,
-            $this->payment_method,
-            $this->reference_no,
-            $this->notes
-        );
+        $amountRemaining = (float) $this->amount;
+        $profitPayment = 0;
+        $purchasePayment = 0;
+
+        $profitBalance = $investor->profit_balance;
+        $purchaseBalance = $investor->purchase_balance;
+
+        if ($amountRemaining > 0 && $profitBalance > 0) {
+            $profitPayment = min($amountRemaining, $profitBalance);
+            $amountRemaining -= $profitPayment;
+        }
+
+        if ($amountRemaining > 0 && $purchaseBalance > 0) {
+            $purchasePayment = min($amountRemaining, $purchaseBalance);
+            $amountRemaining -= $purchasePayment;
+        }
+
+        app(InvestorService::class)->processPayment($investor, [
+            'profit_payment_amount' => $profitPayment,
+            'purchase_repayment_amount' => $purchasePayment,
+            'payment_method' => $this->payment_method,
+            'reference_no' => $this->reference_no,
+            'notes' => $this->notes,
+        ]);
 
         Flux::toast(variant: 'success', text: __('Payment processed successfully.'));
         $this->modalOpen = false;
@@ -138,7 +155,7 @@ new #[Title('Investor Payments')] class extends Component
                                 @endif
                             </td>
                             <td class="px-6 py-4 text-right font-medium text-zinc-900 dark:text-zinc-100">
-                                Rs {{ number_format($payment->amount, 2) }}
+                                Rs {{ number_format($payment->total_payment, 2) }}
                             </td>
                         </tr>
                     @empty
@@ -167,18 +184,18 @@ new #[Title('Investor Payments')] class extends Component
 
             <div class="grid gap-4 sm:grid-cols-2">
                 <div class="sm:col-span-2">
-                    <flux:select wire:model="selectedInvestorId" label="{{ __('Investor') }}" placeholder="{{ __('Select Investor') }}" required>
+                    <flux:select wire:model.live="selectedInvestorId" label="{{ __('Investor') }}" placeholder="{{ __('Select Investor') }}" required>
                         @foreach ($this->activeInvestors as $inv)
-                            <option value="{{ $inv->id }}">{{ $inv->name }} (Bal: Rs {{ number_format($inv->total_payable, 2) }})</option>
+                            <flux:select.option :value="$inv->id">{{ $inv->name }} (Bal: Rs {{ number_format($inv->total_payable, 2) }})</flux:select.option>
                         @endforeach
                     </flux:select>
                 </div>
                 
                 <flux:input type="number" step="0.01" wire:model="amount" label="{{ __('Amount (Rs)') }}" placeholder="0.00" required />
                 <flux:select wire:model="payment_method" label="{{ __('Payment Method') }}" required>
-                    <option value="cash">Cash</option>
-                    <option value="bank_transfer">Bank Transfer</option>
-                    <option value="cheque">Cheque</option>
+                    <flux:select.option value="cash">Cash</flux:select.option>
+                    <flux:select.option value="bank_transfer">Bank Transfer</flux:select.option>
+                    <flux:select.option value="cheque">Cheque</flux:select.option>
                 </flux:select>
                 
                 <div class="sm:col-span-2">
