@@ -518,6 +518,7 @@ class BusinessReportService
             ->with('paymentable')
             ->whereDate('date', '>=', $startDate)
             ->whereDate('date', '<=', $endDate)
+            ->whereNull('investor_id')
             ->whereHasMorph('paymentable', [Supplier::class, Purchase::class])
             ->where(function ($query): void {
                 $query->where('payment_method', '!=', 'cheque')

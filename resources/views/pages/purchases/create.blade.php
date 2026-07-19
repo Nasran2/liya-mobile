@@ -530,6 +530,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
                     'cheque_type' => $isChequePayment ? $paymentRow['cheque_type'] : null,
                     'source_payment_id' => $isChequePayment && $paymentRow['cheque_type'] === 'party' ? $paymentRow['source_payment_id'] : null,
                     'party_customer_id' => $isChequePayment && $paymentRow['cheque_type'] === 'party' ? $paymentRow['party_customer_id'] : null,
+                    'investor_id' => $paymentRow['investor_id'] ?? null,
                     'notes' => $isChequePayment ? 'Supplier cheque payment on hold until cleared.' : 'Restock purchase invoice payments.',
                 ]);
             }
@@ -789,6 +790,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
                     'source_payment_id' => $sourcePayment?->id,
                     'party_customer_id' => $sourcePayment?->paymentable?->customer_id,
                     'source_amount' => (float) ($sourcePayment?->amount ?? 0),
+                    'investor_id' => $row['investor_id'] ?? null,
                 ];
             })
             ->filter(fn (array $row): bool => $row['amount'] > 0)
