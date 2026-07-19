@@ -70,6 +70,7 @@ class User extends Authenticatable implements PasskeyUser
                 'view_dashboard', 'access_pos', 'view_products', 'add_product', 'edit_product', 'delete_product',
                 'view_purchase', 'add_purchase', 'edit_purchase', 'delete_purchase',
                 'view_reports', 'export_reports', 'manage_settings', 'manage_users', 'view_profit', 'process_return', 'add_expense', 'view_accounting',
+                'manage_investors'
             ],
             'cashier' => [
                 'view_dashboard', 'access_pos', 'add_customer', 'view_reports', 'process_return', 'add_expense',

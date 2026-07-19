@@ -46,7 +46,7 @@
             mobileMenuOpen: false, 
             sidebarCollapsed: localStorage.sidebarCollapsed === 'true',
             isDark: localStorage.theme === 'dark',
-            expandedMenu: localStorage.expandedMenu || '{{ request()->routeIs('pos.*') ? 'pos' : (request()->routeIs('products.*') ? 'products' : (request()->routeIs('parties.suppliers', 'parties.supplier-transactions') ? 'suppliers' : (request()->routeIs('parties.customers', 'parties.customer-transactions') ? 'customers' : (request()->routeIs('purchases.*') ? 'purchases' : (request()->routeIs('expenses.*') ? 'expenses' : (request()->routeIs('accounting.*') ? 'accounting' : (request()->routeIs('reports.*') ? 'reports' : (request()->routeIs('settings.*') || request()->routeIs('profile.edit') || request()->routeIs('security.edit') || request()->routeIs('appearance.edit') || request()->routeIs('developer.*') ? 'settings' : 'dashboard')))))))) }}',
+            expandedMenu: localStorage.expandedMenu || '{{ request()->routeIs('pos.*') ? 'pos' : (request()->routeIs('products.*') ? 'products' : (request()->routeIs('parties.suppliers', 'parties.supplier-transactions') ? 'suppliers' : (request()->routeIs('parties.customers', 'parties.customer-transactions') ? 'customers' : (request()->routeIs('purchases.*') ? 'purchases' : (request()->routeIs('expenses.*') ? 'expenses' : (request()->routeIs('accounting.*') ? 'accounting' : (request()->routeIs('investors.*') ? 'investors' : (request()->routeIs('reports.*') ? 'reports' : (request()->routeIs('settings.*') || request()->routeIs('profile.edit') || request()->routeIs('security.edit') || request()->routeIs('appearance.edit') || request()->routeIs('developer.*') ? 'settings' : 'dashboard'))))))))) }}',
             
             toggleSidebar() {
                 this.sidebarCollapsed = !this.sidebarCollapsed;
@@ -501,6 +501,62 @@
                                     <a href="{{ route('accounting.t-accounts') }}" wire:navigate class="flex items-center gap-2.5 py-1.5 text-sm font-medium {{ request()->routeIs('accounting.t-accounts') ? 'text-violet-600 dark:text-violet-400' : 'text-zinc-500 hover:text-violet-600 dark:text-zinc-400 dark:hover:text-violet-400' }}">
                                         <flux:icon.table-cells class="size-4 text-zinc-400" />
                                         <span>T Accounts</span>
+                                    </a>
+                                </div>
+                            </div>
+
+                            <!-- Investor Management Accordion Menu -->
+                            <div class="space-y-1">
+                                <button
+                                    type="button"
+                                    @click="toggleMenu('investors')"
+                                    title="{{ __('Investor Management') }}"
+                                    class="flex items-center rounded-xl transition-all duration-300 w-full"
+                                    :class="[
+                                        expandedMenu === 'investors' 
+                                            ? 'bg-violet-50 text-violet-600 dark:bg-violet-950/30 dark:text-violet-400 font-bold' 
+                                            : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800/40',
+                                        sidebarCollapsed ? 'justify-center p-3' : 'px-3 py-2.5 text-sm gap-3'
+                                    ]"
+                                >
+                                    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-all duration-300"
+                                          :class="expandedMenu === 'investors' ? 'bg-violet-600 text-white shadow-md' : 'text-zinc-500'">
+                                        <flux:icon.briefcase class="size-5 shrink-0" />
+                                    </span>
+                                    <span x-show="!sidebarCollapsed" class="flex-1 text-left font-medium">{{ __('Investors') }}</span>
+                                    <span x-show="!sidebarCollapsed" class="text-zinc-400 shrink-0">
+                                        <flux:icon.chevron-down x-show="expandedMenu === 'investors'" class="size-3.5" />
+                                        <flux:icon.chevron-right x-show="expandedMenu !== 'investors'" class="size-3.5" />
+                                    </span>
+                                </button>
+
+                                <!-- Investors Sub-Menu -->
+                                <div 
+                                    x-show="expandedMenu === 'investors' && !sidebarCollapsed" 
+                                    x-transition:enter="transition ease-out duration-150"
+                                    x-transition:enter-start="opacity-0 -translate-y-2"
+                                    x-transition:enter-end="opacity-100 translate-y-0"
+                                    class="pl-12 pr-2 py-1 space-y-1.5"
+                                >
+                                    <a href="{{ route('investors.dashboard') }}" wire:navigate class="flex items-center gap-2.5 py-1.5 text-sm font-medium {{ request()->routeIs('investors.dashboard') ? 'text-violet-600 dark:text-violet-400' : 'text-zinc-500 hover:text-violet-600 dark:text-zinc-400 dark:hover:text-violet-400' }}">
+                                        <flux:icon.chart-pie class="size-4 text-zinc-400" />
+                                        <span>Dashboard</span>
+                                    </a>
+                                    <a href="{{ route('investors.index') }}" wire:navigate class="flex items-center gap-2.5 py-1.5 text-sm font-medium {{ request()->routeIs('investors.index') ? 'text-violet-600 dark:text-violet-400' : 'text-zinc-500 hover:text-violet-600 dark:text-zinc-400 dark:hover:text-violet-400' }}">
+                                        <flux:icon.users class="size-4 text-zinc-400" />
+                                        <span>Directory</span>
+                                    </a>
+                                    <a href="{{ route('investors.payments') }}" wire:navigate class="flex items-center gap-2.5 py-1.5 text-sm font-medium {{ request()->routeIs('investors.payments') ? 'text-violet-600 dark:text-violet-400' : 'text-zinc-500 hover:text-violet-600 dark:text-zinc-400 dark:hover:text-violet-400' }}">
+                                        <flux:icon.banknotes class="size-4 text-zinc-400" />
+                                        <span>Payments</span>
+                                    </a>
+                                    <a href="{{ route('investors.reports') }}" wire:navigate class="flex items-center gap-2.5 py-1.5 text-sm font-medium {{ request()->routeIs('investors.reports') ? 'text-violet-600 dark:text-violet-400' : 'text-zinc-500 hover:text-violet-600 dark:text-zinc-400 dark:hover:text-violet-400' }}">
+                                        <flux:icon.document-chart-bar class="size-4 text-zinc-400" />
+                                        <span>Reports</span>
+                                    </a>
+                                    <a href="{{ route('investors.settings') }}" wire:navigate class="flex items-center gap-2.5 py-1.5 text-sm font-medium {{ request()->routeIs('investors.settings') ? 'text-violet-600 dark:text-violet-400' : 'text-zinc-500 hover:text-violet-600 dark:text-zinc-400 dark:hover:text-violet-400' }}">
+                                        <flux:icon.cog-6-tooth class="size-4 text-zinc-400" />
+                                        <span>Settings</span>
                                     </a>
                                 </div>
                             </div>

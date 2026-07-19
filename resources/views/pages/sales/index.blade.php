@@ -220,6 +220,7 @@ new #[Title('Sales Receipts')] class extends Component
             }
 
             $sale->items()->delete();
+            app(\App\Services\InvestorService::class)->reverseSaleProfit($sale, 'sale_deleted');
             $sale->delete();
         });
 

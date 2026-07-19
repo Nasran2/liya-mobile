@@ -9,6 +9,8 @@ use App\Models\SaleItem;
 use App\Models\SaleReturn;
 use App\Models\SaleReturnItem;
 use App\Models\Setting;
+use App\Models\Investor;
+use App\Services\InvestorService;
 use App\Services\ActivityLogger;
 use App\Services\ChequePaymentService;
 use App\Services\SmsNotificationService;
@@ -25,6 +27,10 @@ new #[Title('POS Terminal')] class extends Component
 {
     // Filter parameters
     public string $barcodeInput = '';
+
+    // Investor Allocations
+    public array $investorAllocations = [];
+    public bool $investorModuleEnabled = false;
 
     // Cart items state
     public array $cart = [];
@@ -120,6 +126,19 @@ new #[Title('POS Terminal')] class extends Component
         $this->allowNegativeStock = Setting::get('pos_allow_negative_stock', '0') !== '0';
         $this->paymentRows = [$this->blankPaymentRow()];
         $this->saleDate = today()->toDateString();
+        
+        $investorService = app(InvestorService::class);
+        $this->investorModuleEnabled = $investorService->isEnabled();
+
+        if ($this->investorModuleEnabled) {
+            $this->investorAllocations = Investor::where('is_active', true)
+                ->get()
+                ->map(fn($inv) => [
+                    'investor_id' => $inv->id,
+                    'name' => $inv->name,
+                    'percentage' => $inv->default_profit_percentage
+                ])->toArray();
+        }
 
         if ($sale && $sale->exists) {
             $this->editingSale = $sale;
@@ -855,6 +874,10 @@ new #[Title('POS Terminal')] class extends Component
         $customer = Customer::query()->findOrFail($this->customer_id);
         if ($dueAmount > 0) {
             $customer->increment('due_balance', $dueAmount);
+        }
+
+        if ($this->investorModuleEnabled && count($this->investorAllocations) > 0) {
+            app(InvestorService::class)->allocateSaleProfit($sale, $this->investorAllocations);
         }
 
         ActivityLogger::log('pos_sale', "Completed Checkout {$invoiceNo}. Grand Total: Rs {$grandTotal}, Cashier: " . auth()->user()->name);

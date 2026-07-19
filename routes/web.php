@@ -47,6 +47,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('accounting/bank-transfers', 'pages::accounting.bank-transfers')->name('accounting.bank-transfers');
     Route::livewire('accounting/payment-method-report', 'pages::accounting.payment-method-report')->name('accounting.payment-method-report');
     Route::livewire('accounting/t-accounts', 'pages::accounting.t-accounts')->name('accounting.t-accounts');
+    
+    Route::livewire('investors', 'pages::investors.dashboard')->name('investors.dashboard');
+    Route::livewire('investors/directory', 'pages::investors.index')->name('investors.index');
+    Route::livewire('investors/payments', 'pages::investors.payments')->name('investors.payments');
+    Route::livewire('investors/reports', 'pages::investors.reports')->name('investors.reports');
+    Route::livewire('investors/settings', 'pages::investors.settings')->name('investors.settings');
     Route::livewire('reports', 'pages::reports.index')->name('reports.index');
     Route::livewire('reports/sales', 'pages::reports.sales')->name('reports.sales');
     Route::livewire('reports/purchases', 'pages::reports.purchases')->name('reports.purchases');

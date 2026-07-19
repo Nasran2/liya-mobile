@@ -9,6 +9,8 @@ use App\Models\Payment;
 use App\Models\Sale;
 use App\Models\Supplier;
 use App\Models\Unit;
+use App\Models\Investor;
+use App\Services\InvestorService;
 use App\Services\ActivityLogger;
 use App\Services\TextItSmsService;
 use Flux\Flux;
@@ -57,8 +59,27 @@ new #[Title('Record Wholesale Purchase')] class extends Component
     public array $paymentRows = [];
     public string $notes = '';
 
+    // Investor funding state
+    public bool $investorModuleEnabled = false;
+    public array $investorFundings = [];
+
     public function mount(?Purchase $purchase = null): void
     {
+        $investorService = app(InvestorService::class);
+        $this->investorModuleEnabled = $investorService->isEnabled();
+
+        if ($this->investorModuleEnabled) {
+            $this->investorFundings = Investor::where('is_active', true)
+                ->get()
+                ->map(fn($inv) => [
+                    'investor_id' => $inv->id,
+                    'name' => $inv->name,
+                    'amount' => 0,
+                    'payment_method' => 'cash',
+                    'reference_no' => '',
+                ])->toArray();
+        }
+
         if ($purchase?->exists) {
             $this->loadPurchaseForEditing($purchase);
 
@@ -518,6 +539,10 @@ new #[Title('Record Wholesale Purchase')] class extends Component
                         'due_balance' => round(max(0, (float) $supplier->due_balance + $dueDelta), 2),
                     ]);
                 }
+            }
+
+            if ($this->investorModuleEnabled && count($this->investorFundings) > 0) {
+                app(InvestorService::class)->fundPurchase($purchase, $this->investorFundings);
             }
         });
 
