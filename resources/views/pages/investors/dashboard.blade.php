@@ -21,15 +21,17 @@ new #[Title('Investor Dashboard')] class extends Component
     {
         $activeInvestors = Investor::where('is_active', true)->count();
         
-        $totalProfitDistributed = InvestorLedgerEntry::where('type', 'profit')
-            ->sum('credit');
+        $totalProfitDistributed = InvestorLedgerEntry::whereIn('transaction_type', ['sale_profit'])
+            ->sum('profit_credit');
             
-        $totalPurchaseFunding = InvestorPurchaseFunding::sum('amount');
+        $totalPurchaseFunding = InvestorPurchaseFunding::sum('funded_amount');
             
-        $totalWithdrawn = InvestorLedgerEntry::where('type', 'payment')
-            ->sum('debit');
+        $totalWithdrawn = InvestorLedgerEntry::whereIn('transaction_type', ['profit_payment', 'purchase_repayment', 'combined_payment'])
+            ->sum(DB::raw('profit_debit + purchase_debit'));
 
-        $totalBalance = InvestorLedgerEntry::select(DB::raw('COALESCE(SUM(credit - debit), 0) as balance'))->value('balance');
+        $totalBalance = InvestorLedgerEntry::whereIn('id', function ($query) {
+            $query->select(DB::raw('MAX(id)'))->from('investor_ledger_entries')->groupBy('investor_id');
+        })->sum('total_payable_balance');
 
         return [
             'active_investors' => $activeInvestors,

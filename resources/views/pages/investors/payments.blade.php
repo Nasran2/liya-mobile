@@ -49,9 +49,9 @@ new #[Title('Investor Payments')] class extends Component
     public function activeInvestors()
     {
         return Investor::where('is_active', true)
-            ->where('balance', '>', 0)
             ->orderBy('name')
-            ->get();
+            ->get()
+            ->filter(fn($i) => $i->total_payable > 0);
     }
 
     public function openPaymentModal()
@@ -73,8 +73,8 @@ new #[Title('Investor Payments')] class extends Component
 
         $investor = Investor::findOrFail($this->selectedInvestorId);
 
-        if ($this->amount > $investor->balance) {
-            $this->addError('amount', __('Amount cannot exceed investor balance of Rs :balance', ['balance' => $investor->balance]));
+        if ($this->amount > $investor->total_payable) {
+            $this->addError('amount', __('Amount cannot exceed investor balance of Rs :balance', ['balance' => $investor->total_payable]));
             return;
         }
 
@@ -169,7 +169,7 @@ new #[Title('Investor Payments')] class extends Component
                 <div class="sm:col-span-2">
                     <flux:select wire:model="selectedInvestorId" label="{{ __('Investor') }}" placeholder="{{ __('Select Investor') }}" required>
                         @foreach ($this->activeInvestors as $inv)
-                            <option value="{{ $inv->id }}">{{ $inv->name }} (Bal: Rs {{ number_format($inv->balance, 2) }})</option>
+                            <option value="{{ $inv->id }}">{{ $inv->name }} (Bal: Rs {{ number_format($inv->total_payable, 2) }})</option>
                         @endforeach
                     </flux:select>
                 </div>

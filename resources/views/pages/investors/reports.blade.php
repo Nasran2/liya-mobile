@@ -53,7 +53,7 @@ new #[Title('Investor Reports')] class extends Component
         }
 
         if ($this->type) {
-            $query->where('type', $this->type);
+            $query->where('transaction_type', $this->type);
         }
 
         return $query->paginate(15);
@@ -79,9 +79,11 @@ new #[Title('Investor Reports')] class extends Component
         
         <flux:select wire:model.live="type" label="{{ __('Type') }}">
             <option value="">{{ __('All Transaction Types') }}</option>
-            <option value="profit">Profit Allocation</option>
-            <option value="funding">Purchase Funding</option>
-            <option value="payment">Payment/Withdrawal</option>
+            <option value="sale_profit">Profit Allocation</option>
+            <option value="purchase_funding">Purchase Funding</option>
+            <option value="profit_payment">Profit Payment</option>
+            <option value="purchase_repayment">Purchase Repayment</option>
+            <option value="combined_payment">Combined Payment</option>
             <option value="adjustment">Manual Adjustment</option>
         </flux:select>
         
@@ -114,21 +116,21 @@ new #[Title('Investor Reports')] class extends Component
                                 {{ $entry->investor->name }}
                             </td>
                             <td class="px-6 py-4 text-zinc-600 dark:text-zinc-400 uppercase text-xs">
-                                <flux:badge size="sm" color="{{ $entry->type === 'profit' ? 'emerald' : ($entry->type === 'funding' ? 'blue' : ($entry->type === 'payment' ? 'rose' : 'zinc')) }}">
-                                    {{ $entry->type }}
+                                <flux:badge size="sm" color="{{ $entry->transaction_type === 'sale_profit' ? 'emerald' : ($entry->transaction_type === 'purchase_funding' ? 'blue' : (in_array($entry->transaction_type, ['profit_payment', 'purchase_repayment', 'combined_payment']) ? 'rose' : 'zinc')) }}">
+                                    {{ str_replace('_', ' ', $entry->transaction_type) }}
                                 </flux:badge>
                             </td>
                             <td class="px-6 py-4 text-zinc-600 dark:text-zinc-400 truncate max-w-xs" title="{{ $entry->description }}">
                                 {{ $entry->description }}
                             </td>
                             <td class="px-6 py-4 text-right font-medium text-emerald-600 dark:text-emerald-400">
-                                {{ $entry->credit > 0 ? 'Rs ' . number_format($entry->credit, 2) : '-' }}
+                                {{ ($entry->profit_credit > 0 || $entry->purchase_credit > 0) ? 'Rs ' . number_format($entry->profit_credit + $entry->purchase_credit, 2) : '-' }}
                             </td>
                             <td class="px-6 py-4 text-right font-medium text-rose-600 dark:text-rose-400">
-                                {{ $entry->debit > 0 ? 'Rs ' . number_format($entry->debit, 2) : '-' }}
+                                {{ ($entry->profit_debit > 0 || $entry->purchase_debit > 0) ? 'Rs ' . number_format($entry->profit_debit + $entry->purchase_debit, 2) : '-' }}
                             </td>
                             <td class="px-6 py-4 text-right font-medium text-zinc-900 dark:text-zinc-100">
-                                Rs {{ number_format($entry->balance, 2) }}
+                                Rs {{ number_format($entry->total_payable_balance, 2) }}
                             </td>
                         </tr>
                     @empty

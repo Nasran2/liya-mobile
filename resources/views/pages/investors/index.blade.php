@@ -98,7 +98,6 @@ new #[Title('Investor Directory')] class extends Component
                 'nid' => $this->nid,
                 'default_profit_percentage' => $this->default_profit_percentage,
                 'is_active' => $this->is_active,
-                'balance' => 0.00,
             ]);
             Flux::toast(variant: 'success', text: __('Investor added successfully.'));
         }
@@ -162,7 +161,7 @@ new #[Title('Investor Directory')] class extends Component
                                 {{ number_format($investor->default_profit_percentage, 2) }}%
                             </td>
                             <td class="px-6 py-4 text-right font-medium text-zinc-900 dark:text-zinc-100">
-                                Rs {{ number_format($investor->balance, 2) }}
+                                Rs {{ number_format($investor->total_payable, 2) }}
                             </td>
                             <td class="px-6 py-4 text-center">
                                 <button type="button" wire:click="toggleActive({{ $investor->id }})" class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold focus:outline-none transition {{ $investor->is_active ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400' : 'bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-500/10 dark:text-rose-400' }}">
