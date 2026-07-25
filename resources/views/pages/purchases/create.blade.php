@@ -115,7 +115,9 @@ new #[Title('Record Wholesale Purchase')] class extends Component
         }
 
         // Add new row to cart at the top
-        array_unshift($this->cart, [
+        $rowKey = 'row_' . $product->id;
+        
+        $newRow = [
             'product_id' => $product->id,
             'name' => $product->name,
             'sku' => $product->sku,
@@ -125,13 +127,15 @@ new #[Title('Record Wholesale Purchase')] class extends Component
             'selling_price' => (float) $product->selling_price,
             'actual_subtotal' => (float) $product->actual_cost ?: (float) $product->cost_price,
             'subtotal' => (float) $product->cost_price,
-        ]);
+        ];
+        
+        $this->cart = [$rowKey => $newRow] + $this->cart;
 
         $this->productSearch = '';
         $this->syncAutoPaidAmount();
     }
 
-    public function updateCartRow(int $index, string $field, $value): void
+    public function updateCartRow(string $index, string $field, $value): void
     {
         if (isset($this->cart[$index])) {
             if ($field === 'quantity') {
@@ -160,17 +164,16 @@ new #[Title('Record Wholesale Purchase')] class extends Component
     {
         $parts = explode('.', $key);
         if (count($parts) === 2) {
-            $index = (int) $parts[0];
+            $index = (string) $parts[0];
             $field = $parts[1];
             $this->updateCartRow($index, $field, $value);
         }
     }
 
-    public function removeCartRow(int $index): void
+    public function removeCartRow(string $index): void
     {
         if (isset($this->cart[$index])) {
             unset($this->cart[$index]);
-            $this->cart = array_values($this->cart);
             $this->syncAutoPaidAmount();
         }
     }
@@ -1187,7 +1190,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
                                 <button
                                     type="button"
                                     class="text-xs text-rose-500 hover:underline font-semibold"
-                                    wire:click="removeCartRow({{ $index }})"
+                                    wire:click="removeCartRow('{{ $index }}')"
                                 >
                                     Remove
                                 </button>
