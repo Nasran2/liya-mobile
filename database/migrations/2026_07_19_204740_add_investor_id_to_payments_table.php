@@ -9,14 +9,14 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('payments', function (Blueprint $table) {
-            $table->foreignId('investor_id')->nullable()->constrained()->nullOnDelete();
+            $table->foreignId('investor_id')->nullable()->index();
         });
     }
 
     public function down(): void
     {
         Schema::table('payments', function (Blueprint $table) {
-            $table->dropForeign(['investor_id']);
+            $table->dropIndex(['investor_id']);
             $table->dropColumn('investor_id');
         });
     }
