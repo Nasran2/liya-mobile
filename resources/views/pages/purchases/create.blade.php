@@ -1192,7 +1192,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
                 <!-- Cart Table / Rows -->
                 <div class="flex flex-col gap-3">
                     @forelse ($cart as $index => $item)
-                        <div class="flex flex-col gap-3 rounded-2xl border border-zinc-100 bg-zinc-50/30 p-4" wire:key="cart-item-{{ $index }}">
+                        <div class="flex flex-col gap-3 rounded-2xl border border-zinc-100 bg-zinc-50/30 p-4" wire:key="cart-item-{{ $item['product_id'] }}">
                             <div class="flex items-start justify-between">
                                 <div>
                                     <a href="{{ route('products.show', $item['product_id']) }}" target="_blank" class="text-sm font-bold text-zinc-900 hover:text-violet-600 hover:underline flex items-center gap-1">
