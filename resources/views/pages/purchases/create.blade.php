@@ -137,7 +137,11 @@ new #[Title('Record Wholesale Purchase')] class extends Component
             if ($field === 'quantity') {
                 $this->cart[$index]['quantity'] = max(1, (int) $value);
             } elseif ($field === 'actual_cost') {
-                $this->cart[$index]['actual_cost'] = max(0.00, (float) $value);
+                $actualCost = max(0.00, (float) $value);
+                $this->cart[$index]['actual_cost'] = $actualCost;
+                
+                $profitPercentage = (float) (\App\Models\InvestorSetting::get('default_profit_percentage') ?? 0);
+                $this->cart[$index]['cost_price'] = round($actualCost + ($actualCost * ($profitPercentage / 100)), 2);
             } elseif ($field === 'cost_price') {
                 $this->cart[$index]['cost_price'] = max(0.00, (float) $value);
             } elseif ($field === 'selling_price') {
@@ -158,6 +162,12 @@ new #[Title('Record Wholesale Purchase')] class extends Component
             $this->cart = array_values($this->cart);
             $this->syncAutoPaidAmount();
         }
+    }
+
+    public function updatedNewProductActualCost(): void
+    {
+        $profitPercentage = (float) (\App\Models\InvestorSetting::get('default_profit_percentage') ?? 0);
+        $this->newProductCostPrice = round((float) $this->newProductActualCost + ((float) $this->newProductActualCost * ($profitPercentage / 100)), 2);
     }
 
     public function openProductModal(): void
@@ -1443,7 +1453,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
         </div>
 
         <div class="grid gap-4 sm:grid-cols-2">
-            <flux:input wire:model="newProductActualCost" type="number" step="0.01" :label="__('Actual cost')" required />
+            <flux:input wire:model.live="newProductActualCost" type="number" step="0.01" :label="__('Actual cost')" required />
             <flux:input wire:model="newProductCostPrice" type="number" step="0.01" :label="__('Cost price (Inventory)')" required />
         </div>
 
