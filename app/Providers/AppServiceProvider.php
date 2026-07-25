@@ -9,6 +9,7 @@ use App\Http\Requests\PasskeyVerificationRequestCustom;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use Laravel\Passkeys\Actions\StorePasskey;
@@ -43,6 +44,8 @@ class AppServiceProvider extends ServiceProvider
      */
     protected function configureDefaults(): void
     {
+        Schema::defaultStringLength(191);
+
         Date::use(CarbonImmutable::class);
 
         DB::prohibitDestructiveCommands(
