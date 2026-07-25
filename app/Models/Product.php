@@ -20,6 +20,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'image_path',
     'compatible_models',
     'color',
+    'actual_cost',
     'cost_price',
     'selling_price',
     'wholesale_price',
@@ -51,6 +52,7 @@ class Product extends Model
     protected function casts(): array
     {
         return [
+            'actual_cost' => 'decimal:2',
             'cost_price' => 'decimal:2',
             'selling_price' => 'decimal:2',
             'wholesale_price' => 'decimal:2',

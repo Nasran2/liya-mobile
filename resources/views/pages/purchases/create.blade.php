@@ -40,6 +40,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
     public ?int $newProductBrandId = null;
     public ?int $newProductUnitId = null;
     public ?string $newProductCompatibleModels = null;
+    public $newProductActualCost = 0.0;
     public $newProductCostPrice = 0.0;
     public $newProductSellingPrice = 0.0;
     public $newProductWholesalePrice = null;
@@ -105,6 +106,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
         foreach ($this->cart as $index => $item) {
             if ($item['product_id'] === $product->id) {
                 $this->cart[$index]['quantity']++;
+                $this->cart[$index]['actual_subtotal'] = $this->cart[$index]['quantity'] * $this->cart[$index]['actual_cost'];
                 $this->cart[$index]['subtotal'] = $this->cart[$index]['quantity'] * $this->cart[$index]['cost_price'];
                 $this->productSearch = '';
                 $this->syncAutoPaidAmount();
@@ -118,8 +120,10 @@ new #[Title('Record Wholesale Purchase')] class extends Component
             'name' => $product->name,
             'sku' => $product->sku,
             'quantity' => 1,
+            'actual_cost' => (float) $product->actual_cost ?: (float) $product->cost_price,
             'cost_price' => (float) $product->cost_price,
             'selling_price' => (float) $product->selling_price,
+            'actual_subtotal' => (float) $product->actual_cost ?: (float) $product->cost_price,
             'subtotal' => (float) $product->cost_price,
         ];
 
@@ -132,6 +136,8 @@ new #[Title('Record Wholesale Purchase')] class extends Component
         if (isset($this->cart[$index])) {
             if ($field === 'quantity') {
                 $this->cart[$index]['quantity'] = max(1, (int) $value);
+            } elseif ($field === 'actual_cost') {
+                $this->cart[$index]['actual_cost'] = max(0.00, (float) $value);
             } elseif ($field === 'cost_price') {
                 $this->cart[$index]['cost_price'] = max(0.00, (float) $value);
             } elseif ($field === 'selling_price') {
@@ -139,6 +145,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
             }
 
             // Recalculate row subtotal
+            $this->cart[$index]['actual_subtotal'] = $this->cart[$index]['quantity'] * $this->cart[$index]['actual_cost'];
             $this->cart[$index]['subtotal'] = $this->cart[$index]['quantity'] * $this->cart[$index]['cost_price'];
             $this->syncAutoPaidAmount();
         }
@@ -176,6 +183,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
             'newProductSku' => ['required', 'string', 'max:64', Rule::unique(Product::class, 'sku')],
             'newProductBarcode' => ['nullable', 'string', 'max:64', Rule::unique(Product::class, 'barcode')],
             'newProductCompatibleModels' => 'nullable|string|max:255',
+            'newProductActualCost' => 'required|numeric|min:0',
             'newProductCostPrice' => 'required|numeric|min:0',
             'newProductSellingPrice' => 'required|numeric|min:0',
             'newProductWholesalePrice' => 'nullable|numeric|min:0',
@@ -190,6 +198,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
             'sku' => $this->newProductSku,
             'barcode' => $this->newProductBarcode ?: null,
             'compatible_models' => $this->newProductCompatibleModels ?: null,
+            'actual_cost' => (float) $this->newProductActualCost,
             'cost_price' => (float) $this->newProductCostPrice,
             'selling_price' => (float) $this->newProductSellingPrice,
             'wholesale_price' => ($this->newProductWholesalePrice !== null && $this->newProductWholesalePrice !== '')
@@ -232,6 +241,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
             'newProductBrandId',
             'newProductUnitId',
             'newProductCompatibleModels',
+            'newProductActualCost',
             'newProductCostPrice',
             'newProductSellingPrice',
             'newProductWholesalePrice',
@@ -362,6 +372,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
             'cart' => 'required|array|min:1',
             'cart.*.product_id' => 'required|exists:products,id',
             'cart.*.quantity' => 'required|integer|min:1',
+            'cart.*.actual_cost' => 'required|numeric|min:0',
             'cart.*.cost_price' => 'required|numeric|min:0',
             'cart.*.selling_price' => 'required|numeric|min:0',
             'discount' => 'required|numeric|min:0',
@@ -484,8 +495,10 @@ new #[Title('Record Wholesale Purchase')] class extends Component
                 $purchase->items()->create([
                     'product_id' => $item['product_id'],
                     'quantity' => $item['quantity'],
+                    'actual_cost' => $item['actual_cost'],
                     'cost_price' => $item['cost_price'],
                     'selling_price' => $item['selling_price'],
+                    'actual_subtotal' => $item['actual_subtotal'],
                     'subtotal' => $item['subtotal'],
                 ]);
 
@@ -506,6 +519,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
                 Product::query()
                     ->whereKey($item['product_id'])
                     ->update([
+                        'actual_cost' => $item['actual_cost'],
                         'cost_price' => $item['cost_price'],
                         'selling_price' => $item['selling_price'],
                     ]);
@@ -679,7 +693,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
     #[Computed]
     public function cartSubtotal()
     {
-        return array_reduce($this->cart, fn($carry, $item) => $carry + $item['subtotal'], 0.00);
+        return array_reduce($this->cart, fn($carry, $item) => $carry + $item['actual_subtotal'], 0.00);
     }
 
     #[Computed]
@@ -1002,8 +1016,10 @@ new #[Title('Record Wholesale Purchase')] class extends Component
                 'name' => $item->product?->name ?? __('Deleted Product'),
                 'sku' => $item->product?->sku ?? '',
                 'quantity' => (int) $item->quantity,
+                'actual_cost' => (float) $item->actual_cost,
                 'cost_price' => (float) $item->cost_price,
                 'selling_price' => (float) $item->selling_price,
+                'actual_subtotal' => (float) $item->actual_subtotal ?: (float) $item->subtotal,
                 'subtotal' => (float) $item->subtotal,
             ])
             ->values()
@@ -1157,13 +1173,25 @@ new #[Title('Record Wholesale Purchase')] class extends Component
                             </div>
 
                             <!-- Cart row parameters inputs -->
-                            <div class="grid gap-3 sm:grid-cols-3">
+                            <div class="grid gap-3 sm:grid-cols-4">
                                 <div>
                                     <label class="text-[10px] text-zinc-400 font-semibold tracking-wide uppercase">{{ __('Restock Qty') }}</label>
                                     <input
                                         type="number"
                                         value="{{ $item['quantity'] }}"
                                         wire:change="updateCartRow({{ $index }}, 'quantity', $event.target.value)"
+                                        class="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-950 focus:outline-none"
+                                        required
+                                    />
+                                </div>
+
+                                <div>
+                                    <label class="text-[10px] text-zinc-400 font-semibold tracking-wide uppercase">{{ __('Actual Cost (Rs)') }}</label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        value="{{ $item['actual_cost'] }}"
+                                        wire:change="updateCartRow({{ $index }}, 'actual_cost', $event.target.value)"
                                         class="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-950 focus:outline-none"
                                         required
                                     />
@@ -1195,8 +1223,8 @@ new #[Title('Record Wholesale Purchase')] class extends Component
                             </div>
 
                             <div class="flex items-center justify-between border-t border-zinc-100 pt-2 text-xs">
-                                <span class="text-zinc-500">Row Subtotal</span>
-                                <span class="font-bold text-zinc-950">Rs {{ number_format($item['subtotal'], 2) }}</span>
+                                <span class="text-zinc-500">Row Subtotal (Actual)</span>
+                                <span class="font-bold text-zinc-950">Rs {{ number_format($item['actual_subtotal'], 2) }}</span>
                             </div>
                         </div>
                     @empty
@@ -1414,8 +1442,12 @@ new #[Title('Record Wholesale Purchase')] class extends Component
             <flux:input wire:model="newProductCompatibleModels" :label="__('Compatible models')" />
         </div>
 
-        <div class="grid gap-4 sm:grid-cols-3">
-            <flux:input wire:model="newProductCostPrice" type="number" step="0.01" :label="__('Cost price')" required />
+        <div class="grid gap-4 sm:grid-cols-2">
+            <flux:input wire:model="newProductActualCost" type="number" step="0.01" :label="__('Actual cost')" required />
+            <flux:input wire:model="newProductCostPrice" type="number" step="0.01" :label="__('Cost price (Inventory)')" required />
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2">
             <flux:input wire:model="newProductSellingPrice" @input="$wire.set('newProductWholesalePrice', $event.target.value)" type="number" step="0.01" :label="__('Selling price')" required />
             <flux:input wire:model="newProductWholesalePrice" type="number" step="0.01" :label="__('Wholesale price')" />
         </div>
