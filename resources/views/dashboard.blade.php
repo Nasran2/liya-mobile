@@ -73,17 +73,7 @@
     });
 
     $hasTrendSales = $salesTrend->sum('total') > 0;
-    $visualTrend = $hasTrendSales
-        ? $salesTrend
-        : collect([
-            ['label' => 'Pulse', 'total' => 36],
-            ['label' => 'Pulse', 'total' => 58],
-            ['label' => 'Pulse', 'total' => 42],
-            ['label' => 'Pulse', 'total' => 64],
-            ['label' => 'Pulse', 'total' => 46],
-            ['label' => 'Pulse', 'total' => 72],
-            ['label' => 'Pulse', 'total' => 55],
-        ]);
+    $visualTrend = $salesTrend;
 
     $maxTrend = max((float) $visualTrend->max('total'), 1);
     $trendPoints = $visualTrend->values()
