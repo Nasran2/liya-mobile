@@ -114,8 +114,8 @@ new #[Title('Record Wholesale Purchase')] class extends Component
             }
         }
 
-        // Add new row to cart
-        $this->cart[] = [
+        // Add new row to cart at the top
+        array_unshift($this->cart, [
             'product_id' => $product->id,
             'name' => $product->name,
             'sku' => $product->sku,
@@ -125,7 +125,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
             'selling_price' => (float) $product->selling_price,
             'actual_subtotal' => (float) $product->actual_cost ?: (float) $product->cost_price,
             'subtotal' => (float) $product->cost_price,
-        ];
+        ]);
 
         $this->productSearch = '';
         $this->syncAutoPaidAmount();
