@@ -145,13 +145,6 @@ new #[Title('Record Wholesale Purchase')] class extends Component
             } elseif ($field === 'cost_price') {
                 $costPrice = max(0.00, (float) $value);
                 $this->cart[$index]['cost_price'] = $costPrice;
-                
-                $profitPercentage = (float) (\App\Models\InvestorSetting::get('default_profit_percentage') ?? 0);
-                if ($profitPercentage > 0) {
-                    $this->cart[$index]['actual_cost'] = round($costPrice / (1 + ($profitPercentage / 100)), 2);
-                } else {
-                    $this->cart[$index]['actual_cost'] = $costPrice;
-                }
             } elseif ($field === 'selling_price') {
                 $this->cart[$index]['selling_price'] = max(0.00, (float) $value);
             }
@@ -186,16 +179,6 @@ new #[Title('Record Wholesale Purchase')] class extends Component
     {
         $profitPercentage = (float) (\App\Models\InvestorSetting::get('default_profit_percentage') ?? 0);
         $this->newProductCostPrice = round((float) $this->newProductActualCost + ((float) $this->newProductActualCost * ($profitPercentage / 100)), 2);
-    }
-
-    public function updatedNewProductCostPrice(): void
-    {
-        $profitPercentage = (float) (\App\Models\InvestorSetting::get('default_profit_percentage') ?? 0);
-        if ($profitPercentage > 0) {
-            $this->newProductActualCost = round((float) $this->newProductCostPrice / (1 + ($profitPercentage / 100)), 2);
-        } else {
-            $this->newProductActualCost = (float) $this->newProductCostPrice;
-        }
     }
 
     public function openProductModal(): void
@@ -1478,7 +1461,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
 
         <div class="grid gap-4 sm:grid-cols-2">
             <flux:input wire:model.live="newProductActualCost" type="number" step="0.01" :label="__('Actual cost')" required />
-            <flux:input wire:model.live="newProductCostPrice" type="number" step="0.01" :label="__('Cost price (Inventory)')" required />
+            <flux:input wire:model="newProductCostPrice" type="number" step="0.01" :label="__('Cost price (Inventory)')" required />
         </div>
 
         <div class="grid gap-4 sm:grid-cols-2">
