@@ -163,6 +163,16 @@ new #[Title('Record Wholesale Purchase')] class extends Component
         }
     }
 
+    public function updatedCart($value, $key): void
+    {
+        $parts = explode('.', $key);
+        if (count($parts) === 2) {
+            $index = (int) $parts[0];
+            $field = $parts[1];
+            $this->updateCartRow($index, $field, $value);
+        }
+    }
+
     public function removeCartRow(int $index): void
     {
         if (isset($this->cart[$index])) {
@@ -1206,8 +1216,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
                                     <label class="text-[10px] text-zinc-400 font-semibold tracking-wide uppercase">{{ __('Restock Qty') }}</label>
                                     <input
                                         type="number"
-                                        value="{{ $item['quantity'] }}"
-                                        wire:change="updateCartRow({{ $index }}, 'quantity', $event.target.value)"
+                                        wire:model.blur="cart.{{ $index }}.quantity"
                                         class="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-950 focus:outline-none"
                                         required
                                     />
@@ -1218,8 +1227,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
                                     <input
                                         type="number"
                                         step="0.01"
-                                        value="{{ $item['actual_cost'] }}"
-                                        wire:change="updateCartRow({{ $index }}, 'actual_cost', $event.target.value)"
+                                        wire:model.blur="cart.{{ $index }}.actual_cost"
                                         class="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-950 focus:outline-none"
                                         required
                                     />
@@ -1230,8 +1238,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
                                     <input
                                         type="number"
                                         step="0.01"
-                                        value="{{ $item['cost_price'] }}"
-                                        wire:change="updateCartRow({{ $index }}, 'cost_price', $event.target.value)"
+                                        wire:model.blur="cart.{{ $index }}.cost_price"
                                         class="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-950 focus:outline-none"
                                         required
                                     />
@@ -1242,8 +1249,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
                                     <input
                                         type="number"
                                         step="0.01"
-                                        value="{{ $item['selling_price'] }}"
-                                        wire:change="updateCartRow({{ $index }}, 'selling_price', $event.target.value)"
+                                        wire:model.blur="cart.{{ $index }}.selling_price"
                                         class="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-950 focus:outline-none"
                                         required
                                     />
