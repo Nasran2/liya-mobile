@@ -875,14 +875,9 @@ new #[Title('POS Terminal')] class extends Component
             ]);
         }
 
-        // 4. Update customer outstanding receivables account
         $customer = Customer::query()->findOrFail($this->customer_id);
         if ($dueAmount > 0) {
             $customer->increment('due_balance', $dueAmount);
-        }
-
-        if ($this->investorModuleEnabled && count($this->investorAllocations) > 0) {
-            app(InvestorService::class)->allocateSaleProfit($sale, $this->investorAllocations);
         }
 
         ActivityLogger::log('pos_sale', "Completed Checkout {$invoiceNo}. Grand Total: Rs {$grandTotal}, Cashier: " . auth()->user()->name);
