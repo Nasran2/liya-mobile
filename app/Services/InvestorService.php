@@ -67,14 +67,18 @@ class InvestorService
 
                 $investorProfitAmount = ($eligibleProfit * $percentage) / 100;
 
-                // Create allocation record
-                SaleInvestorAllocation::create([
-                    'sale_id' => $sale->id,
-                    'investor_id' => $investor->id,
-                    'percentage' => $percentage,
-                    'profit_amount' => $investorProfitAmount,
-                    'status' => 'allocated',
-                ]);
+                // Create or update allocation record
+                SaleInvestorAllocation::updateOrCreate(
+                    [
+                        'sale_id' => $sale->id,
+                        'investor_id' => $investor->id,
+                    ],
+                    [
+                        'percentage' => $percentage,
+                        'profit_amount' => $investorProfitAmount,
+                        'status' => 'allocated',
+                    ]
+                );
 
                 // Create profit transaction
                 $transaction = InvestorProfitTransaction::create([
