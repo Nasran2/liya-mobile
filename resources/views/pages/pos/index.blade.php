@@ -652,24 +652,30 @@ new #[Title('POS Terminal')] class extends Component
 
     public function submitCheckout(SmsNotificationService $smsNotificationService): void
     {
+        $lock = Cache::lock('pos_checkout_' . auth()->id(), 5);
 
-        $rules = [
-            'customer_id' => 'required|exists:customers,id',
-            'saleDate' => 'required|date',
-            'cart' => 'array',
-            'returnCredits' => 'array',
-            'discount' => 'required|numeric|min:0',
-            'tax' => 'required|numeric|min:0',
-            'paymentRows' => 'required|array|min:1',
-            'paymentRows.*.amount' => 'required|numeric|min:0',
-            'paymentRows.*.method' => 'required|in:cash,card,qr,bank_transfer,cheque',
-            'paymentRows.*.reference' => 'nullable|string|max:100',
-            'paymentRows.*.cheque_bank' => 'nullable|string|max:100',
-            'paymentRows.*.cheque_no' => 'nullable|string|max:100',
-            'paymentRows.*.cheque_date' => 'nullable|date',
-        ];
+        if (! $lock->get()) {
+            return;
+        }
 
-        $this->validate($rules);
+        try {
+            $rules = [
+                'customer_id' => 'required|exists:customers,id',
+                'saleDate' => 'required|date',
+                'cart' => 'array',
+                'returnCredits' => 'array',
+                'discount' => 'required|numeric|min:0',
+                'tax' => 'required|numeric|min:0',
+                'paymentRows' => 'required|array|min:1',
+                'paymentRows.*.amount' => 'required|numeric|min:0',
+                'paymentRows.*.method' => 'required|in:cash,card,qr,bank_transfer,cheque',
+                'paymentRows.*.reference' => 'nullable|string|max:100',
+                'paymentRows.*.cheque_bank' => 'nullable|string|max:100',
+                'paymentRows.*.cheque_no' => 'nullable|string|max:100',
+                'paymentRows.*.cheque_date' => 'nullable|date',
+            ];
+
+            $this->validate($rules);
 
         if (count($this->cart) === 0 && count($this->returnCredits) === 0) {
             $this->addError('cart', __('Add at least one sale product or return item.'));
@@ -892,6 +898,9 @@ new #[Title('POS Terminal')] class extends Component
         }
 
         $this->resetCart();
+        } finally {
+            $lock->release();
+        }
     }
 
     public function triggerSMSNotification(TextItSmsService $smsService): void
