@@ -77,6 +77,7 @@ new #[Title('Units')] class extends Component
     }
 }; ?>
 
+<div>
 <section class="app-card p-4">
     <div class="flex flex-col gap-2">
         <p class="text-xs font-semibold uppercase tracking-wide text-zinc-400">{{ __('Catalog') }}</p>
@@ -178,3 +179,4 @@ new #[Title('Units')] class extends Component
         </flux:table.rows>
     </flux:table>
 </section>
+</div>

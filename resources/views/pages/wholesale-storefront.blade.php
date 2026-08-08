@@ -113,6 +113,7 @@ new #[Layout('layouts::storefront'), Title('Wholesale Portal')] class extends Co
 };
 ?>
 
+<div>
 <style>
 @media (prefers-reduced-motion: no-preference) {
   @supports ((animation-timeline: view()) and (animation-range: entry)) {
@@ -562,3 +563,4 @@ new #[Layout('layouts::storefront'), Title('Wholesale Portal')] class extends Co
         </div>
     </section>
 </main>
+</div>

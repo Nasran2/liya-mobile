@@ -296,6 +296,9 @@ new #[Title('Record Wholesale Purchase')] class extends Component
 
     private function syncAutoPaidAmount(): void
     {
+        unset($this->cartSubtotal);
+        unset($this->cartTotal);
+
         if (in_array($this->payment_method, ['cash', 'bank_transfer'], true)) {
             $this->paid_amount = max(0.00, (float) $this->cartTotal);
             $this->syncLegacyPaymentToFirstRow();
@@ -1202,7 +1205,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
                                     <label class="text-[10px] text-zinc-400 font-semibold tracking-wide uppercase">{{ __('Restock Qty') }}</label>
                                     <input
                                         type="number"
-                                        wire:model.blur="cart.{{ $index }}.quantity"
+                                        wire:model.live.debounce.300ms="cart.{{ $index }}.quantity"
                                         class="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-950 focus:outline-none"
                                         required
                                     />
@@ -1213,7 +1216,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
                                     <input
                                         type="number"
                                         step="0.01"
-                                        wire:model.blur="cart.{{ $index }}.actual_cost"
+                                        wire:model.live.debounce.300ms="cart.{{ $index }}.actual_cost"
                                         class="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-950 focus:outline-none"
                                         required
                                     />
@@ -1224,7 +1227,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
                                     <input
                                         type="number"
                                         step="0.01"
-                                        wire:model.blur="cart.{{ $index }}.cost_price"
+                                        wire:model.live.debounce.300ms="cart.{{ $index }}.cost_price"
                                         class="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-950 focus:outline-none"
                                         required
                                     />
@@ -1235,7 +1238,7 @@ new #[Title('Record Wholesale Purchase')] class extends Component
                                     <input
                                         type="number"
                                         step="0.01"
-                                        wire:model.blur="cart.{{ $index }}.selling_price"
+                                        wire:model.live.debounce.300ms="cart.{{ $index }}.selling_price"
                                         class="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-950 focus:outline-none"
                                         required
                                     />
