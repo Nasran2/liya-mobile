@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Investor;
+use App\Models\InvestorSetting;
 use Flux\Flux;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
@@ -41,6 +42,12 @@ new #[Title('Investor Directory')] class extends Component
             ->orWhere('phone', 'like', '%' . $this->search . '%')
             ->orderBy('name')
             ->paginate(15);
+    }
+
+    #[Computed]
+    public function defaultProductInvestorId()
+    {
+        return (int) InvestorSetting::where('key', 'default_product_investor_id')->value('value');
     }
 
     public function openCreateModal()
@@ -115,6 +122,16 @@ new #[Title('Investor Directory')] class extends Component
         $investor->update(['is_active' => !$investor->is_active]);
         Flux::toast(variant: 'success', text: __('Investor status updated.'));
     }
+
+    public function setAsDefault(int $id)
+    {
+        InvestorSetting::updateOrCreate(
+            ['key' => 'default_product_investor_id'],
+            ['value' => (string) $id]
+        );
+        unset($this->defaultProductInvestorId);
+        Flux::toast(variant: 'success', text: __('Default product sponsor updated.'));
+    }
 }; ?>
 
 <div class="flex flex-col gap-6">
@@ -153,6 +170,11 @@ new #[Title('Investor Directory')] class extends Component
                                 <a href="{{ route('investors.show', $investor) }}" class="hover:underline text-indigo-600 dark:text-indigo-400" wire:navigate>
                                     {{ $investor->name }}
                                 </a>
+                                @if($this->defaultProductInvestorId === $investor->id)
+                                    <span class="ml-2 inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-medium text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400">
+                                        <flux:icon.star class="size-3" variant="solid" /> Default
+                                    </span>
+                                @endif
                                 @if($investor->nic)
                                     <div class="text-xs text-zinc-500 font-normal">NIC: {{ $investor->nic }}</div>
                                 @endif
@@ -181,6 +203,11 @@ new #[Title('Investor Directory')] class extends Component
                                 </button>
                             </td>
                             <td class="px-6 py-4 text-right">
+                                @if($this->defaultProductInvestorId !== $investor->id)
+                                    <flux:button size="sm" variant="subtle" wire:click="setAsDefault({{ $investor->id }})" title="{{ __('Set as Default Sponsor') }}">
+                                        <flux:icon.star class="size-4" />
+                                    </flux:button>
+                                @endif
                                 <flux:button size="sm" variant="subtle" wire:click="openEditModal({{ $investor->id }})">
                                     <flux:icon.pencil-square class="size-4" />
                                 </flux:button>

@@ -5,6 +5,7 @@ use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Unit;
+use App\Models\Investor;
 use Flux\Flux;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
@@ -86,6 +87,15 @@ new #[Title('Edit product')] class extends Component
             ->where('is_active', true)
             ->orderBy('name')
             ->get(['id', 'name']);
+    }
+
+    #[Computed]
+    public function investors()
+    {
+        return Investor::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'default_profit_percentage']);
     }
 }; ?>
 

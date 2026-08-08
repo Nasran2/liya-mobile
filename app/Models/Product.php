@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'category_id',
     'brand_id',
     'unit_id',
+    'investor_id',
     'name',
     'sku',
     'barcode',
@@ -87,5 +88,10 @@ class Product extends Model
     public function unit(): BelongsTo
     {
         return $this->belongsTo(Unit::class);
+    }
+
+    public function investor(): BelongsTo
+    {
+        return $this->belongsTo(Investor::class);
     }
 }

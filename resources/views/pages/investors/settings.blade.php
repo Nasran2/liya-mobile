@@ -1,7 +1,9 @@
 <?php
 
+use App\Models\Investor;
 use App\Models\InvestorSetting;
 use Flux\Flux;
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
@@ -9,6 +11,7 @@ new #[Title('Investor Settings')] class extends Component
 {
     public bool $module_enabled = false;
     public string $default_profit_percentage = '0.00';
+    public ?int $default_product_investor_id = null;
 
     public function mount()
     {
@@ -16,6 +19,14 @@ new #[Title('Investor Settings')] class extends Component
         
         $this->module_enabled = InvestorSetting::where('key', 'module_enabled')->value('value') === '1';
         $this->default_profit_percentage = InvestorSetting::where('key', 'default_profit_percentage')->value('value') ?? '0.00';
+        $defaultInvestor = InvestorSetting::where('key', 'default_product_investor_id')->value('value');
+        $this->default_product_investor_id = $defaultInvestor ? (int) $defaultInvestor : null;
+    }
+
+    #[Computed]
+    public function investors()
+    {
+        return Investor::where('is_active', true)->orderBy('name')->get();
     }
 
     public function saveSettings()
@@ -23,6 +34,7 @@ new #[Title('Investor Settings')] class extends Component
         $this->validate([
             'module_enabled' => 'boolean',
             'default_profit_percentage' => 'numeric|min:0|max:100',
+            'default_product_investor_id' => 'nullable|integer|exists:investors,id',
         ]);
 
         InvestorSetting::updateOrCreate(
@@ -33,6 +45,11 @@ new #[Title('Investor Settings')] class extends Component
         InvestorSetting::updateOrCreate(
             ['key' => 'default_profit_percentage'],
             ['value' => (string) $this->default_profit_percentage]
+        );
+
+        InvestorSetting::updateOrCreate(
+            ['key' => 'default_product_investor_id'],
+            ['value' => (string) $this->default_product_investor_id]
         );
 
         Flux::toast(variant: 'success', text: __('Investor settings updated successfully.'));
@@ -52,10 +69,16 @@ new #[Title('Investor Settings')] class extends Component
             {{ __('General Settings') }}
         </h2>
 
-        <div class="space-y-6">
             <flux:switch wire:model="module_enabled" label="{{ __('Enable Investor Module') }}" description="{{ __('Turn on to track investor profit allocations on sales and fundings on purchases.') }}" />
             
             <flux:input type="number" step="0.01" wire:model="default_profit_percentage" label="{{ __('System Default Profit Percentage') }}" description="{{ __('The default percentage used if an investor does not have a specific percentage set.') }}" />
+
+            <flux:select wire:model="default_product_investor_id" label="{{ __('Default Product Sponsor') }}" description="{{ __('This sponsor will be pre-selected automatically when you add new products.') }}">
+                <flux:select.option value="">{{ __('No default sponsor') }}</flux:select.option>
+                @foreach ($this->investors as $investor)
+                    <flux:select.option :value="$investor->id">{{ $investor->name }}</flux:select.option>
+                @endforeach
+            </flux:select>
         </div>
 
         <div class="flex items-center justify-end mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-800">

@@ -59,6 +59,11 @@ class Investor extends Model
         return $this->hasMany(InvestorLedgerEntry::class);
     }
     
+    public function sponsoredProducts(): HasMany
+    {
+        return $this->hasMany(Product::class, 'investor_id');
+    }
+    
     public function getProfitBalanceAttribute()
     {
         return $this->ledgerEntries()->orderBy('id', 'desc')->value('profit_balance') ?? 0;

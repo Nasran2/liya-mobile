@@ -39,6 +39,12 @@
                     <button type="button" @click="let n = prompt('Enter new unit name:'); if(n) $wire.quickAddUnit(n)" class="absolute right-0 top-0 text-[10px] sm:text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition px-1">+ Add New</button>
                 </div>
                 <flux:input wire:model="form.compatible_models" :label="__('Compatible models')" />
+                <flux:select wire:model="form.investor_id" :label="__('Sponsor / Investor')">
+                    <flux:select.option value="">{{ __('No sponsor') }}</flux:select.option>
+                    @foreach ($this->investors as $investor)
+                        <flux:select.option :value="$investor->id">{{ $investor->name }} ({{ (float)$investor->default_profit_percentage }}%)</flux:select.option>
+                    @endforeach
+                </flux:select>
             </div>
         </div>
 

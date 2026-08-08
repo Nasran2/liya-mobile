@@ -28,44 +28,66 @@ class InvestorService
     /**
      * Calculate and allocate profit for a sale.
      */
-    public function allocateSaleProfit(Sale $sale, array $investorAllocations = [])
+    public function allocateSaleProfit(Sale $sale, array $legacyAllocations = [])
     {
         if (!$this->isEnabled()) {
             return;
         }
 
-        DB::transaction(function () use ($sale, $investorAllocations) {
+        DB::transaction(function () use ($sale) {
             // First, reverse any existing allocations for this sale to handle edits cleanly
             $this->reverseSaleProfit($sale, 'sale_edit');
 
-            if (empty($investorAllocations)) {
+            $calculationMethod = InvestorSetting::get('profit_calculation_method', 'gross');
+            $deductedExpenses = 0;
+            
+            $investorProfits = [];
+            $sale->loadMissing('items.product');
+
+            foreach ($sale->items as $item) {
+                $product = $item->product;
+                if ($product && $product->investor_id) {
+                    $investorId = $product->investor_id;
+                    $itemCost = (float) $item->cost_price * (int) $item->quantity;
+                    
+                    // Proportion of this item's subtotal to the sale's total subtotal
+                    $discountShare = 0;
+                    if ($sale->subtotal_amount > 0) {
+                        $discountShare = ((float) $item->subtotal / (float) $sale->subtotal_amount) * (float) $sale->discount_amount;
+                    }
+                    
+                    $itemNetRevenue = (float) $item->subtotal - $discountShare;
+                    $itemGrossProfit = $itemNetRevenue - $itemCost;
+                    $itemEligibleProfit = $calculationMethod === 'net' ? ($itemGrossProfit - $deductedExpenses) : $itemGrossProfit;
+
+                    if (!isset($investorProfits[$investorId])) {
+                        $investorProfits[$investorId] = [
+                            'eligible_profit' => 0,
+                            'cost_of_goods' => 0,
+                            'net_sales' => 0,
+                            'gross_profit' => 0,
+                        ];
+                    }
+                    $investorProfits[$investorId]['eligible_profit'] += $itemEligibleProfit;
+                    $investorProfits[$investorId]['gross_profit'] += $itemGrossProfit;
+                    $investorProfits[$investorId]['cost_of_goods'] += $itemCost;
+                    $investorProfits[$investorId]['net_sales'] += $itemNetRevenue;
+                }
+            }
+
+            if (empty($investorProfits)) {
                 return;
             }
 
-            // Calculate cost of goods and total eligible profit for the sale
-            $costOfGoods = $sale->items->sum('subtotal_cost') ?? $sale->items->sum(function ($item) {
-                return $item->cost_price * $item->quantity;
-            });
-            
-            $netSalesAmount = $sale->subtotal_amount - $sale->discount_amount;
-            $grossProfit = $netSalesAmount - $costOfGoods;
-            
-            // If settings use 'net' profit, deduct expenses if any are linked to sale. 
-            // For now, assuming gross profit based on requirements.
-            $calculationMethod = InvestorSetting::get('profit_calculation_method', 'gross');
-            $deductedExpenses = 0;
-            $eligibleProfit = $calculationMethod === 'net' ? ($grossProfit - $deductedExpenses) : $grossProfit;
-
-            foreach ($investorAllocations as $allocation) {
-                $investorId = $allocation['investor_id'];
-                $percentage = $allocation['percentage'];
+            foreach ($investorProfits as $investorId => $data) {
                 $investor = Investor::find($investorId);
 
                 if (!$investor || !$investor->is_active) {
                     continue;
                 }
 
-                $investorProfitAmount = ($eligibleProfit * $percentage) / 100;
+                $percentage = $investor->default_profit_percentage;
+                $investorProfitAmount = ($data['eligible_profit'] * $percentage) / 100;
 
                 // Create or update allocation record
                 SaleInvestorAllocation::updateOrCreate(
@@ -88,11 +110,11 @@ class InvestorService
                     'sales_subtotal' => $sale->subtotal_amount,
                     'discount' => $sale->discount_amount,
                     'tax' => $sale->tax_amount,
-                    'net_sales_amount' => $netSalesAmount,
-                    'cost_of_goods' => $costOfGoods,
-                    'gross_profit' => $grossProfit,
+                    'net_sales_amount' => $data['net_sales'],
+                    'cost_of_goods' => $data['cost_of_goods'],
+                    'gross_profit' => $data['gross_profit'],
                     'deducted_expenses' => $deductedExpenses,
-                    'eligible_profit' => $eligibleProfit,
+                    'eligible_profit' => $data['eligible_profit'],
                     'investor_percentage' => $percentage,
                     'investor_profit_amount' => $investorProfitAmount,
                     'paid_amount' => 0,

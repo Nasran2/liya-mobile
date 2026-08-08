@@ -24,6 +24,8 @@ class ProductForm extends Form
 
     public ?int $unit_id = null;
 
+    public ?int $investor_id = null;
+
     public string $sku = '';
 
     public ?string $barcode = null;
@@ -63,6 +65,7 @@ class ProductForm extends Form
         $this->category_id = $product->category_id;
         $this->brand_id = $product->brand_id;
         $this->unit_id = $product->unit_id;
+        $this->investor_id = $product->investor_id;
         $this->sku = $product->sku;
         $this->barcode = $product->barcode;
         $this->compatible_models = $product->compatible_models;
@@ -96,6 +99,7 @@ class ProductForm extends Form
             'category_id' => ['nullable', 'integer', 'exists:categories,id'],
             'brand_id' => ['nullable', 'integer', 'exists:brands,id'],
             'unit_id' => ['nullable', 'integer', 'exists:units,id'],
+            'investor_id' => ['nullable', 'integer', 'exists:investors,id'],
             'sku' => [
                 'required',
                 'string',
@@ -159,6 +163,14 @@ class ProductForm extends Form
         if (empty($this->barcode)) {
             $this->barcode = $this->sku;
         }
+
+        if ($this->investor_id === null && !\App\Models\Product::where('id', $this->product?->id)->exists()) {
+            // Assign default product investor only for new products if empty
+            $defaultInvestor = \App\Models\InvestorSetting::where('key', 'default_product_investor_id')->value('value');
+            if ($defaultInvestor) {
+                $this->investor_id = (int) $defaultInvestor;
+            }
+        }
     }
 
     private function payload(?string $imagePath): array
@@ -167,6 +179,7 @@ class ProductForm extends Form
             'category_id' => $this->category_id,
             'brand_id' => $this->brand_id,
             'unit_id' => $this->unit_id,
+            'investor_id' => $this->investor_id,
             'name' => $this->name,
             'sku' => $this->sku,
             'barcode' => $this->barcode ?: null,
