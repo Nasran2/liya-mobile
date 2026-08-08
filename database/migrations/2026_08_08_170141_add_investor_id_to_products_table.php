@@ -12,7 +12,11 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('products', function (Blueprint $table) {
-            $table->foreignId('investor_id')->nullable()->constrained('investors')->nullOnDelete()->after('unit_id');
+            // Check if column exists to prevent issues if it was partially added on live server
+            if (!Schema::hasColumn('products', 'investor_id')) {
+                $table->unsignedBigInteger('investor_id')->nullable()->after('unit_id');
+                // Removed explicit database foreign key constraint to prevent error 1824 on live server
+            }
         });
     }
 
@@ -22,8 +26,9 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('products', function (Blueprint $table) {
-            $table->dropForeign(['investor_id']);
-            $table->dropColumn('investor_id');
+            if (Schema::hasColumn('products', 'investor_id')) {
+                $table->dropColumn('investor_id');
+            }
         });
     }
 };
