@@ -569,9 +569,9 @@ new #[Title('Record Wholesale Purchase')] class extends Component
                     'cheque_date' => $isChequePayment ? $paymentRow['cheque_date'] : null,
                     'cheque_status' => $isChequePayment ? $paymentRow['cheque_status'] : null,
                     'cheque_type' => $isChequePayment ? $paymentRow['cheque_type'] : null,
-                    'source_payment_id' => $isChequePayment && $paymentRow['cheque_type'] === 'party' ? $paymentRow['source_payment_id'] : null,
-                    'party_customer_id' => $isChequePayment && $paymentRow['cheque_type'] === 'party' ? $paymentRow['party_customer_id'] : null,
-                    'investor_id' => $paymentRow['investor_id'] ?? null,
+                    'source_payment_id' => $isChequePayment && $paymentRow['cheque_type'] === 'party' && !empty($paymentRow['source_payment_id']) ? $paymentRow['source_payment_id'] : null,
+                    'party_customer_id' => $isChequePayment && $paymentRow['cheque_type'] === 'party' && !empty($paymentRow['party_customer_id']) ? $paymentRow['party_customer_id'] : null,
+                    'investor_id' => !empty($paymentRow['investor_id']) ? $paymentRow['investor_id'] : null,
                     'notes' => $isChequePayment ? 'Supplier cheque payment on hold until cleared.' : 'Restock purchase invoice payments.',
                 ]);
             }
